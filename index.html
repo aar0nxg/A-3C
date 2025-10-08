@@ -1,358 +1,203 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Mini Aaron — Pixel Flight</title>
 <style>
-  html,body{height:100%;margin:0;background:#0b1220;display:flex;align-items:center;justify-content:center;font-family:Inter, system-ui, sans-serif}
-  .wrap{width:900px;max-width:98vw}
-  canvas{display:block;width:100%;background:#6ec1ff;border-radius:8px;image-rendering:pixelated}
-  .ui{display:flex;justify-content:space-between;align-items:center;margin-top:8px;color:#fff}
-  .button{background:#ff6b81;padding:8px 14px;border-radius:10px;cursor:pointer;user-select:none}
-  .button:active{transform:translateY(1px)}
-  .small{font-size:14px;color:#dbeafe}
-  .controls{font-size:13px;color:#e9f5ff}
-  .footer{margin-top:10px;color:#9fbbe6;font-size:13px}
+  body {
+    margin: 0;
+    background: #1d1d2e;
+    overflow: hidden;
+  }
+  canvas {
+    display: block;
+    margin: auto;
+    background: linear-gradient(#87ceeb, #1d1d2e);
+    image-rendering: pixelated;
+  }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <canvas id="game" width="800" height="450"></canvas>
-  <div class="ui">
-    <div>
-      <div class="button" id="startBtn">Play</div>
-    </div>
-    <div class="controls small">Controls: Arrow Up / Arrow Down or Tap to move • Reach Canada!</div>
-    <div class="small" id="status">Distance: 0%</div>
-  </div>
-  <div class="footer">Pixel mini-game — fly from Bangladesh to Canada and avoid obstacles. Made for you ❤️</div>
-</div>
+<canvas id="gameCanvas" width="800" height="600"></canvas>
 <script>
-(() => {
-  const canvas = document.getElementById('game');
-  const ctx = canvas.getContext('2d');
-  // pixel aesthetic
-  ctx.imageSmoothingEnabled = false;
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
 
-  const W = canvas.width, H = canvas.height;
-  let running = false;
-  let gameState = 'idle'; // idle, playing, ended
+let gameRunning = true;
+let score = 0;
+let gameSpeed = 3;
+let obstacleSpawnRate = 2000;
+let lastObstacle = 0;
+let difficultyTimer = 0;
+let player = { x: 100, y: 300, width: 40, height: 30, dy: 0 };
+let obstacles = [];
+let particles = [];
+let clouds = [];
 
-  // Scale factor for drawing 'pixels'
-  const px = 4; // pixel size
+// Initialize clouds
+for (let i = 0; i < 8; i++) {
+  clouds.push({
+    x: Math.random() * canvas.width,
+    y: Math.random() * 200,
+    width: 80,
+    height: 40,
+    speed: Math.random() * 0.5 + 0.2
+  });
+}
 
-  // Simple pixel-sprite helpers
-  function drawPixelSprite(x,y,map,scale=1){
-    for(let yy=0; yy<map.length; yy++){
-      for(let xx=0; xx<map[yy].length; xx++){
-        const c = map[yy][xx];
-        if(!c) continue;
-        ctx.fillStyle = c;
-        ctx.fillRect((x + xx*px*scale)|0, (y + yy*px*scale)|0, px*scale, px*scale);
-      }
+function drawPlayer() {
+  ctx.fillStyle = '#ffcc00';
+  ctx.fillRect(player.x, player.y, player.width, player.height);
+}
+
+function drawObstacle(obstacle) {
+  ctx.fillStyle = '#ff4444';
+  ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+}
+
+function drawCloud(cloud) {
+  ctx.fillStyle = 'white';
+  ctx.fillRect(cloud.x, cloud.y, cloud.width, cloud.height);
+}
+
+function updateClouds() {
+  clouds.forEach(c => {
+    c.x -= c.speed;
+    if (c.x + c.width < 0) c.x = canvas.width;
+  });
+}
+
+function createObstacle() {
+  const height = Math.random() * 200 + 50;
+  const gap = 180;
+  const topObstacle = { x: canvas.width, y: 0, width: 40, height: height };
+  const bottomObstacle = { x: canvas.width, y: height + gap, width: 40, height: canvas.height - height - gap };
+  obstacles.push(topObstacle, bottomObstacle);
+
+  // Particle effect for obstacle spawn
+  for (let i = 0; i < 5; i++) {
+    particles.push({
+      x: canvas.width,
+      y: height + gap / 2,
+      dx: -Math.random() * 2 - 1,
+      dy: (Math.random() - 0.5) * 2,
+      life: 60
+    });
+  }
+}
+
+function updateObstacles(delta) {
+  obstacles.forEach(ob => ob.x -= gameSpeed);
+  obstacles = obstacles.filter(ob => ob.x + ob.width > 0);
+}
+
+function updateParticles() {
+  particles.forEach(p => {
+    p.x += p.dx;
+    p.y += p.dy;
+    p.life--;
+  });
+  particles = particles.filter(p => p.life > 0);
+}
+
+function drawParticles() {
+  ctx.fillStyle = 'white';
+  particles.forEach(p => {
+    ctx.fillRect(p.x, p.y, 2, 2);
+  });
+}
+
+function detectCollision() {
+  const padding = 5; // slightly forgiving
+  for (let ob of obstacles) {
+    if (
+      player.x + padding < ob.x + ob.width &&
+      player.x + player.width - padding > ob.x &&
+      player.y + padding < ob.y + ob.height &&
+      player.y + player.height - padding > ob.y
+    ) {
+      gameRunning = false;
     }
   }
+}
 
-  // Mini Aaron plane sprite (simple)
-  const planeSprite = [
-    [null,null,'#ffffff','#ffffff','#ffffff',null,null],
-    [null,'#ffcc00','#ffcc00','#ffcc00','#ffcc00','#ffcc00',null],
-    ['#ffcc00','#333333','#333333','#333333','#333333','#333333','#ffcc00'],
-    [null,null,'#ffcc00','#ffcc00','#ffcc00',null,null],
-  ];
-
-  // Mini characters for end-screen (very simple)
-  const aaronSprite = [
-    [null,'#111111','#111111',null],
-    ['#111111','#f0c0b8','#f0c0b8','#111111'],
-    [null,'#111111','#111111',null]
-  ];
-  const chandrimaSprite = [
-    [null,'#111111','#111111',null],
-    ['#111111','#ffd1e6','#ffd1e6','#111111'],
-    [null,'#111111','#111111',null]
-  ];
-
-  // Background layers
-  const stars = Array.from({length:120}).map(()=>({x:Math.random()*W,y:Math.random()*H*0.6,size:Math.random()*2+0.5}));
-  const clouds = [];
-
-  function spawnCloud(){
-    clouds.push({x:W + 50, y:50 + Math.random()*180, speed:0.3 + Math.random()*0.6, size: 40 + Math.random()*60});
+function updateDifficulty(delta) {
+  difficultyTimer += delta;
+  if (difficultyTimer >= 5000) {
+    gameSpeed += 0.5;
+    if (obstacleSpawnRate > 700) obstacleSpawnRate -= 100;
+    difficultyTimer = 0;
   }
-  for(let i=0;i<4;i++) spawnCloud();
+}
 
-  // Obstacles
-  const obstacles = [];
-  function spawnObstacle(){
-    const type = Math.random() < 0.6 ? 'bird' : (Math.random()<0.5?'storm':'balloon');
-    const y = 60 + Math.random()*(H-120);
-    const speed = 2 + Math.random()*2 + (progress/50);
-    obstacles.push({x:W + 40, y, type, speed, w:30, h:18});
+let lastTime = 0;
+function gameLoop(timestamp) {
+  if (!gameRunning) {
+    ctx.fillStyle = 'white';
+    ctx.font = '30px monospace';
+    ctx.fillText('Mini Aaron reached Canada! ❤️', 180, 300);
+    ctx.font = '20px monospace';
+    ctx.fillText('Press R to Restart', 310, 350);
+    return;
   }
 
-  // player
-  const player = {x:100, y:H/2, vy:0, w:36, h:20};
+  const delta = timestamp - lastTime;
+  lastTime = timestamp;
 
-  // progress to Canada
-  let distance = 0; // 0..100
-  let progress = 0; // same
-  const goal = 100;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // input
-  const keys = {};
-  window.addEventListener('keydown', e=>{keys[e.key]=true; if(e.key==='ArrowUp' || e.key==='ArrowDown') e.preventDefault()});
-  window.addEventListener('keyup', e=>{keys[e.key]=false});
-  canvas.addEventListener('pointerdown', e=>{keys['pointer']=true});
-  canvas.addEventListener('pointerup', e=>{keys['pointer']=false});
+  // Update and draw clouds first (background)
+  updateClouds();
+  clouds.forEach(drawCloud);
 
-  // Start button
-  document.getElementById('startBtn').addEventListener('click', startGame);
-
-  // Game loop
-  let last = performance.now();
-  let spawnTimer = 0;
-
-  function startGame(){
-    obstacles.length = 0;
-    clouds.length = 0;
-    for(let i=0;i<4;i++) spawnCloud();
-    distance = 0;
-    progress = 0;
-    player.y = H/2;
-    player.vy = 0;
-    spawnTimer = 0;
-    gameState = 'playing';
-    document.getElementById('status').textContent = 'Distance: 0%';
-    running = true;
-    loop(performance.now());
+  // Player physics
+  player.y += player.dy;
+  player.dy += 0.5;
+  if (player.y < 0) player.y = 0;
+  if (player.y + player.height > canvas.height) {
+    player.y = canvas.height - player.height;
+    player.dy = 0;
   }
 
-  function endGame(success){
-    running = false;
-    gameState = success ? 'ended' : 'idle';
-    if(success) showEnding();
+  // Spawn obstacles
+  if (timestamp - lastObstacle > obstacleSpawnRate) {
+    createObstacle();
+    lastObstacle = timestamp;
   }
 
-  function showEnding(){
-    // animate two sprites meeting
-    let t0 = performance.now();
-    const duration = 3800;
-    const startA = {x: -60, y: H/2 + 10};
-    const startC = {x: W + 60, y: H/2 + 10};
-    function anim(now){
-      const p = Math.min(1, (now - t0)/duration);
-      renderFrame(true, {phase:p, aPos:{x: startA.x + (W/2 - 40 - startA.x)*easeOut(p), y:startA.y}, cPos:{x: startC.x + (W/2 + 40 - startC.x)*easeOut(p), y:startC.y}});
-      if(p < 1) requestAnimationFrame(anim);
-      else {
-        // hug pulse
-        pulseHearts();
-      }
-    }
-    requestAnimationFrame(anim);
-  }
+  updateObstacles(delta);
+  updateParticles();
+  detectCollision();
+  updateDifficulty(delta);
 
-  function pulseHearts(){
-    let n=0; const max=8;
-    function ph(){
-      renderFrame(true, {phase:1, hugPulse: n});
-      n++;
-      if(n<max) setTimeout(ph,260);
-    }
-    ph();
-  }
+  // Draw everything
+  drawPlayer();
+  obstacles.forEach(drawObstacle);
+  drawParticles();
 
-  function renderFrame(ending=false, opts={}){
-    // clear sky gradient
-    const g = ctx.createLinearGradient(0,0,0,H);
-    g.addColorStop(0,'#6ec1ff');
-    g.addColorStop(0.6,'#cfecff');
-    g.addColorStop(1,'#ffe6f2');
-    ctx.fillStyle = g;
-    ctx.fillRect(0,0,W,H);
+  // Update score
+  score += delta * 0.01 * (gameSpeed / 3);
+  ctx.fillStyle = 'white';
+  ctx.font = '20px monospace';
+  ctx.fillText('Score: ' + Math.floor(score), 20, 30);
 
-    // distant land strip at bottom to show travel
-    ctx.fillStyle = '#2e5a3a';
-    ctx.fillRect(0, H-50, W, 50);
+  requestAnimationFrame(gameLoop);
+}
 
-    // stars at top (glimmering)
-    for(const s of stars){
-      ctx.fillStyle = '#fff';
-      ctx.fillRect((s.x|0), (s.y|0), Math.max(1,s.size|0), Math.max(1,s.size|0));
-    }
+// Controls
+function jump() {
+  player.dy = Math.max(player.dy, -8);
+}
 
-    // clouds
-    for(const c of clouds){
-      ctx.globalAlpha = 0.9;
-      roundedCloud(c.x, c.y, c.size);
-      ctx.globalAlpha = 1;
-    }
+window.addEventListener('keydown', e => {
+  if (e.code === 'Space') jump();
+  if (!gameRunning && e.code === 'KeyR') location.reload();
+});
 
-    // obstacles
-    for(const o of obstacles){
-      drawObstacle(o);
-    }
+window.addEventListener('touchstart', jump);
 
-    // plane
-    drawPixelSprite(player.x, player.y-8, planeSprite, 1);
-
-    // HUD
-    ctx.fillStyle = 'rgba(0,0,0,0.35)';
-    ctx.fillRect(10,10,220,36);
-    ctx.fillStyle = '#fff';
-    ctx.font = '14px monospace';
-    ctx.fillText('Journey: Bangladesh → Canada',16,28);
-    const pct = Math.min(100, Math.round(progress));
-    ctx.fillStyle = '#fff';
-    ctx.fillText(pct + '%', 190,28);
-
-    // progress bar
-    ctx.fillStyle = '#333'; ctx.fillRect(10,44,220,8);
-    ctx.fillStyle = '#6affb8'; ctx.fillRect(10,44, 2.2*pct,8);
-
-    if(ending){
-      // draw mini aaron and chandrima using opts positions
-      const aPos = opts.aPos || {x: W/2-40, y: H/2+10};
-      const cPos = opts.cPos || {x: W/2+40, y: H/2+10};
-      drawPixelSprite(aPos.x, aPos.y, aaronSprite, 3);
-      drawPixelSprite(cPos.x, cPos.y, chandrimaSprite, 3);
-      // if hug pulse draw hearts
-      if(opts.hugPulse !== undefined){
-        const n = opts.hugPulse;
-        for(let i=0;i<3;i++){
-          const dx = (i-1)*24;
-          const y = H/2 - 20 - i*6 - (n%2?6:0);
-          drawHeart(W/2 + dx, y, 12 + (n%3));
-        }
-      }
-      // ending title
-      ctx.fillStyle = '#000a'; ctx.fillRect(W/2-170, H/2 -120, 340, 64);
-      ctx.fillStyle = '#fff'; ctx.font='22px monospace'; ctx.fillText('Home — Canada', W/2-80, H/2-84);
-      ctx.font='14px monospace'; ctx.fillText('Mini Aaron made it! They embrace at last ❤️', W/2-140, H/2-64);
-    }
-  }
-
-  function drawObstacle(o){
-    if(o.type==='bird'){
-      ctx.fillStyle = '#111'; ctx.fillRect(o.x, o.y, 18,6);
-      ctx.fillRect(o.x+6,o.y-6,6,6);
-    } else if(o.type==='storm'){
-      ctx.fillStyle='#333'; roundedCloud(o.x, o.y, 30); ctx.fillStyle='#222'; ctx.fillRect(o.x+6,o.y+20,20,6);
-    } else if(o.type==='balloon'){
-      ctx.fillStyle='#ff6b81'; ctx.beginPath(); ctx.ellipse(o.x+10,o.y+6,10,12,0,0,Math.PI*2); ctx.fill(); ctx.fillStyle='#333'; ctx.fillRect(o.x+9,o.y+16,2,6);
-    }
-  }
-
-  function roundedCloud(x,y,size){
-    ctx.fillStyle = 'rgba(255,255,255,0.9)';
-    ctx.beginPath();
-    ctx.ellipse(x,y,size,20,0,0,Math.PI*2);
-    ctx.ellipse(x+size*0.7,y+6,size*0.7,18,0,0,Math.PI*2);
-    ctx.ellipse(x-size*0.7,y+6,size*0.7,18,0,0,Math.PI*2);
-    ctx.fill();
-  }
-
-  function drawHeart(cx, cy, s){
-    ctx.fillStyle = '#ff6b81';
-    ctx.beginPath();
-    const top = s*0.5;
-    ctx.moveTo(cx, cy + top);
-    ctx.bezierCurveTo(cx + s, cy - s, cx + s*1.6, cy + s*0.6, cx, cy + s);
-    ctx.bezierCurveTo(cx - s*1.6, cy + s*0.6, cx - s, cy - s, cx, cy + top);
-    ctx.fill();
-  }
-
-  function easeOut(t){ return 1 - Math.pow(1-t,3); }
-
-  // collision detection
-  function rectsCollide(a,b){
-    return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
-  }
-
-  function loop(now){
-    if(!running) return;
-    const dt = Math.min(40, now - last);
-    last = now;
-
-    // background updates
-    for(const c of clouds){ c.x -= c.speed * (dt/16); if(c.x < -120) c.x = W + 120, c.y = 30 + Math.random()*220; }
-
-    // spawn obstacles over time
-    spawnTimer += dt;
-    if(spawnTimer > 800 - Math.min(500, progress*3)){
-      spawnTimer = 0; if(Math.random() < 0.9) spawnObstacle();
-    }
-
-    // update obstacles
-    for(let i=obstacles.length-1;i>=0;i--){
-      const o = obstacles[i];
-      o.x -= o.speed * (dt/16) * 1.2;
-      if(o.x < -80) obstacles.splice(i,1);
-    }
-
-    // input -> velocity
-    if(keys['ArrowUp'] || keys['w'] || keys['W'] || keys['pointer']){
-      player.vy = -3.5;
-    } else if(keys['ArrowDown'] || keys['s'] || keys['S']){
-      player.vy = 3.5;
-    } else {
-      // gentle gravity/mid float
-      player.vy *= 0.96;
-    }
-    player.y += player.vy * (dt/16);
-    if(player.y < 32) player.y = 32; if(player.y > H-32) player.y = H-32;
-
-    // collision boxes
-    const pBox = {x:player.x, y:player.y-10, w:player.w, h:player.h};
-    let hit = false;
-    for(const o of obstacles){
-      const oBox = {x:o.x, y:o.y, w:o.w, h:o.h};
-      if(rectsCollide(pBox,oBox)) hit = true;
-    }
-    if(hit){
-      // small knockback and slow progress
-      player.x = Math.max(60, player.x - 30);
-      progress = Math.max(0, progress - 4);
-      // clear obstacles for a moment
-      obstacles.splice(0, Math.min(3,obstacles.length));
-    }
-
-    // advance progress steadily
-    progress += 0.03 * (dt/16);
-    if(progress >= goal){
-      progress = goal;
-      running = false;
-      endGame(true);
-    }
-
-    // update status text
-    document.getElementById('status').textContent = 'Distance: ' + Math.min(100, Math.floor(progress)) + '%';
-
-    // draw
-    renderFrame(false);
-
-    requestAnimationFrame(loop);
-  }
-
-  // initial draw - title screen
-  function drawTitle(){
-    ctx.fillStyle = '#082033'; ctx.fillRect(0,0,W,H);
-    ctx.fillStyle = '#fff'; ctx.font = '36px monospace'; ctx.fillText('Mini Aaron — Flight', 160, 150);
-    ctx.font='16px monospace'; ctx.fillText('Fly across the world from Bangladesh to Canada!', 160, 190);
-    // draw plane and characters
-    drawPixelSprite(120, 220, planeSprite, 1);
-    drawPixelSprite(420, 200, aaronSprite, 6);
-    drawPixelSprite(520, 200, chandrimaSprite, 6);
-    ctx.font='14px monospace'; ctx.fillText('Press Play to Start', 160, 240);
-  }
-
-  drawTitle();
-
-  // touch friendly: start on tap on mobile
-  canvas.addEventListener('click', e=>{ if(gameState==='idle'){ startGame(); }});
-
-})();
+requestAnimationFrame(gameLoop);
 </script>
 </body>
 </html>
