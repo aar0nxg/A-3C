@@ -109,7 +109,7 @@ function drawParticles() {
 }
 
 function detectCollision() {
-  const padding = 5; // slightly forgiving
+  const padding = 5;
   for (let ob of obstacles) {
     if (
       player.x + padding < ob.x + ob.width &&
@@ -147,13 +147,13 @@ function gameLoop(timestamp) {
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // Update and draw clouds first (background)
+  // Background clouds
   updateClouds();
   clouds.forEach(drawCloud);
 
-  // Player physics
+  // Player physics (free vertical flight)
   player.y += player.dy;
-  player.dy += 0.5;
+  player.dy += 0.5; // gravity
   if (player.y < 0) player.y = 0;
   if (player.y + player.height > canvas.height) {
     player.y = canvas.height - player.height;
@@ -171,7 +171,7 @@ function gameLoop(timestamp) {
   detectCollision();
   updateDifficulty(delta);
 
-  // Draw everything
+  // Draw player, obstacles, particles
   drawPlayer();
   obstacles.forEach(drawObstacle);
   drawParticles();
@@ -187,7 +187,7 @@ function gameLoop(timestamp) {
 
 // Controls
 function jump() {
-  player.dy = Math.max(player.dy, -8);
+  player.dy = -8;
 }
 
 window.addEventListener('keydown', e => {
