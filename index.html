@@ -316,14 +316,18 @@
   }
 
   // ===== Rider draw (visual only) =====
-  function drawAaronRider(){
-    if(!aaronReady) return;
-    const rx = (rocket.x + AARON_OFF_X) | 0;
-    const ry = (rocket.y + AARON_OFF_Y) | 0;
-    const prev = g.imageSmoothingEnabled;
-    g.imageSmoothingEnabled = false;
-    g.drawImage(aaronImg, rx, ry, AARON_W, AARON_H);
-    g.imageSmoothingEnabled = prev;
+function drawAaronRider(){
+  if(!aaronReady) return;
+  const rx = (rocket.x + AARON_OFF_X) | 0;
+  const ry = (rocket.y + AARON_OFF_Y) | 0;
+
+  // temporarily enable smoothing for this draw only
+  const prev = g.imageSmoothingEnabled;
+  g.imageSmoothingEnabled = true; // smooth Aaron image only
+  g.drawImage(aaronImg, rx, ry, AARON_W, AARON_H);
+  g.imageSmoothingEnabled = prev;
+}
+
   }
 
   // rendering
