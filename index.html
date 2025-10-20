@@ -126,7 +126,7 @@
   function endCrash(){ playing=false; crashed=true; showCrash(); }
 
   // helpers
-  function speedAt(t){ const k=Math.min(1,t/DURATION); return BASE_SPEED + (MAX_SPEED-BASE_SPEED)*k; }
+  function speedAt(t){ const k=Math.min(1,t/DURATION); const eased = k * k; return BASE_SPEED + (MAX_SPEED-BASE_SPEED)* eased; }
   function asteroidIntervalAt(t){ const k=Math.min(1,t/DURATION); return ASTEROID_INTERVAL_MAX + (ASTEROID_INTERVAL_MIN - ASTEROID_INTERVAL_MAX)*k; }
   function formatTime(ms){ const s=Math.ceil(Math.max(0,ms)/1000); const m=String(Math.floor(s/60)).padStart(2,'0'); const ss=String(s%60).padStart(2,'0'); return `${m}:${ss}`; }
 
