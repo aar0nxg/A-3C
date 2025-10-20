@@ -50,30 +50,30 @@
   const GRAVITY = 0.28;
   const FLAP = -5.4;
 
-  // Slower overall feel (approved)
-  const BASE_SPEED = 0.42;            // gentler start
-  const MAX_SPEED  = 2.0;             // lower top speed
-  const ASTEROID_INTERVAL_MIN = 750;  // fewer spawns at peak
-  const ASTEROID_INTERVAL_MAX = 2100; // fewer spawns early
+  // pacing (approved earlier)
+  const BASE_SPEED = 0.42;
+  const MAX_SPEED  = 2.0;
+  const ASTEROID_INTERVAL_MIN = 750;
+  const ASTEROID_INTERVAL_MAX = 2100;
 
-  const START_GRACE = 1500;    // first 1.5s: no asteroids
+  const START_GRACE = 1500; // first 1.5s: no asteroids
   const ROCKET_X = 56;
 
-  // --- Visual parallax layers (no gameplay impact) ---
+  // parallax layers (cosmetic)
   const NEBULA_COUNT   = 6;
   const PLANET_COUNT   = 2;
   const NEBULA_PARALLAX = 0.18;
   const PLANET_PARALLAX = 0.10;
 
-  // --- Foreground FX (visual only) ---
+  // FX (cosmetic)
   const TRAIL_MAX = 42;
   const TRAIL_SPAWN_INTERVAL = 40;
   const SPARKLE_BURST = 12;
   const SPARKLE_DRIP = 2;
   const SPARKLE_INTERVAL = 60;
 
-  // --- Rider (visual only) ---
-  const AARON_SRC = "aaron.jpg";  // ensure name matches your file
+  // --- Rider (HD on screen canvas) ---
+  const AARON_SRC = "aaron.jpg"; // make sure this matches your file name
   const AARON_W   = 12;
   let   AARON_H   = 12;
   const AARON_OFF_X = 3;
@@ -87,12 +87,25 @@
   };
   aaronImg.src = AARON_SRC;
 
+  // --- Girlfriend (Chandrima) HD sprite (shown at end) ---
+  const GF_SRC = "chandrima.png"; // or "chandrima.jpg" — match your file exactly
+  const GF_W   = 18;              // same visual size as old sprite width
+  let   GF_H   = 26;
+  const gfImg = new Image();
+  let gfReady = false;
+  gfImg.onload = () => {
+    const r = gfImg.height / gfImg.width;
+    GF_H = Math.max(1, Math.round(GF_W * r));
+    gfReady = true;
+  };
+  gfImg.src = GF_SRC;
+
   // ====== state ======
   let playing=false, finished=false, crashed=false, startedAt=0, elapsed=0, lastFrame=0;
   let score=0;
   let rocket={x:ROCKET_X,y:H/2,vy:0,w:16,h:10,invuln:0};
   let obstacles=[]; let stars=[]; let nextAsteroidAt=0;
-  let girlfriend=null;
+  let girlfriend=null; // position holder for end-of-run target
   let nebula = [];
   let planets = [];
   let trail = [];
@@ -204,8 +217,7 @@
       const p=planets[i];
       p.x -= spd*PLANET_PARALLAX*dt;
 
-      // transparent so planets don't read like obstacles
-      g.fillStyle = `${p.hue}aa`;
+      g.fillStyle = `${p.hue}aa`; // translucent so they don't read as obstacles
       g.beginPath(); g.arc(p.x|0,p.y|0,p.r|0,0,Math.PI*2); g.fill();
 
       g.fillStyle = 'rgba(0,0,0,0.25)';
@@ -268,8 +280,31 @@
     }
   }
 
-  // ===== HD Rider draw on the SCREEN canvas (not the low-res buffer) =====
+  // ===== Girlfriend draw (pixel-art fallback only) =====
+  function drawGirlfriend(){
+    if(!girlfriend) return;
+    if (gfReady) return; // if HD image is ready, skip pixel art; we draw HD after blit
+    const gx=girlfriend.x|0, gy=girlfriend.y|0;
+    girlfriend.sway+=0.05;
+    const sway=Math.sin(girlfriend.sway)*1.2;
+    // hair
+    g.fillStyle='#2b0f46'; g.fillRect(gx+4,gy+1,10,8);
+    // face
+    g.fillStyle='#ffd1ea'; g.fillRect(gx+6,gy+4,6,6);
+    // eyes
+    g.fillStyle='#2b0f46'; g.fillRect(gx+7,gy+6,1,1); g.fillRect(gx+10,gy+6,1,1);
+    // body/dress
+    g.fillStyle='#b28bff'; g.fillRect(gx+5,gy+11,8,10);
+    // legs
+    g.fillStyle='#ffd1ea'; g.fillRect(gx+7,gy+21,2,4); g.fillRect(gx+9,gy+21,2,4);
+    // little heart
+    g.fillStyle='#ff6fb3';
+    g.fillRect(gx+1, gy+2+(sway|0),1,1); g.fillRect(gx+2, gy+1+(sway|0),1,1); g.fillRect(gx+2, gy+2+(sway|0),1,1);
+  }
+
+  // ===== HD rider & girlfriend on the SCREEN canvas =====
   let lastBlit = {dx:0, dy:0, scale:1, dpr:1}; // updated in blit()
+
   function drawAaronRiderHD(){
     if(!aaronReady) return;
     const {dx,dy,scale,dpr} = lastBlit;
@@ -277,10 +312,22 @@
     const sy = dy*dpr + (rocket.y + AARON_OFF_Y) * scale * dpr;
     const sw = AARON_W * scale * dpr;
     const sh = AARON_H * scale * dpr;
-
     const prev = ctx.imageSmoothingEnabled;
-    ctx.imageSmoothingEnabled = true;       // smooth only the rider
+    ctx.imageSmoothingEnabled = true;
     ctx.drawImage(aaronImg, sx, sy, sw, sh);
+    ctx.imageSmoothingEnabled = prev;
+  }
+
+  function drawChandrimaHD(){
+    if(!girlfriend || !gfReady) return;
+    const {dx, dy, scale, dpr} = lastBlit;
+    const sx = dx*dpr + (girlfriend.x) * scale * dpr;
+    const sy = dy*dpr + (girlfriend.y) * scale * dpr;
+    const sw = GF_W * scale * dpr;
+    const sh = GF_H * scale * dpr;
+    const prev = ctx.imageSmoothingEnabled;
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(gfImg, sx, sy, sw, sh);
     ctx.imageSmoothingEnabled = prev;
   }
 
@@ -289,11 +336,6 @@
   function drawStars(dt,spd){ for(const s of stars){ const p=[0.25,0.5,1.0][s.layer]; s.x-=spd*p*dt; if(s.x<-4) Object.assign(s,newStar()); g.fillStyle=['#4b2a6b','#9d6cff','#e2c6ff'][s.layer]; g.fillRect(s.x|0,s.y|0,1,1);} }
   function drawRocket(){ const {x,y}=rocket; const px=(ix,iy,w,h,c)=>{g.fillStyle=c;g.fillRect((x+ix)|0,(y+iy)|0,w,h);}; px(0,2,10,6,'#b28bff'); px(9,3,3,4,'#e2c6ff'); px(3,4,3,2,'#12001f'); px(0,1,2,2,'#8f5bff'); px(0,7,2,2,'#8f5bff'); const flame=Math.max(0,-rocket.vy*0.8); px(-2,4-(flame>0?1:0),2,2+((flame>2)?1:0),'#ff9ad2'); if(rocket.invuln>0&&((performance.now()%200)|0)<100){ g.globalCompositeOperation='lighter'; px(-1,2,1,6,'#ffffff'); g.globalCompositeOperation='source-over'; } }
   function drawAsteroid(a){ g.fillStyle='#6e49a3'; g.beginPath(); g.arc(a.x|0,a.y|0,a.r|0,0,Math.PI*2); g.fill(); g.fillStyle='#8a68c0'; g.fillRect((a.x-1)|0,(a.y-2)|0,2,2); }
-  function drawGirlfriend(){ if(!girlfriend) return; const gx=girlfriend.x|0, gy=girlfriend.y|0; girlfriend.sway+=0.05; const sway=Math.sin(girlfriend.sway)*1.2; g.fillStyle='#2b0f46'; g.fillRect(gx+4,gy+1,10,8); g.fillStyle='#ffd1ea'; g.fillRect(gx+6,gy+4,6,6); g.fillStyle='#2b0f46'; g.fillRect(gx+7,gy+6,1,1); g.fillRect(gx+10,gy+6,1,1); g.fillStyle='#b28bff'; g.fillRect(gx+5,gy+11,8,10); g.fillStyle='#ffd1ea'; g.fillRect(gx+7,gy+21,2,4); g.fillRect(gx+9,gy+21,2,4); g.fillStyle='#ff6fb3'; g.fillRect(gx+1,gy+2+(sway|0),1,1); g.fillRect(gx+2,gy+1+(sway|0),1,1); g.fillRect(gx+2,gy+2+(sway|0),1,1); }
-  function drawHUDOverlay(timeLeft){ if(timeLeft<7000){ const k=1-timeLeft/7000; g.fillStyle=`rgba(255,170,255,${0.08+0.25*k})`; g.fillRect(0,H-24,W,24);} }
-
-  function aabb(x,y,w,h,x2,y2,w2,h2){ return x<x2+w2 && x+w>x2 && y<y2+h2 && y+h>y2; }
-  function rocketBox(){ return {x:rocket.x,y:rocket.y,w:rocket.w,h:rocket.h}; }
 
   // main loop
   function loop(now){
@@ -340,9 +382,9 @@
 
     // collisions (disabled once girlfriend appears)
     if(rocket.invuln<=0 && !girlfriend){
-      const rb=rocketBox();
+      const rb={x:rocket.x,y:rocket.y,w:rocket.w,h:rocket.h};
       for(const a of obstacles){
-        if(aabb(rb.x,rb.y,rb.w,rb.h, a.x-a.r,a.y-a.r,a.r*2,a.r*2)){
+        if(rb.x < a.x+a.r*2 && rb.x+rb.w > a.x-a.r && rb.y < a.y+a.r && rb.y+rb.h > a.y-a.r){
           endCrash(); ui(); return;
         }
       }
@@ -369,20 +411,23 @@
     drawTrail();
 
     for(const a of obstacles){ drawAsteroid(a); }
-    if(girlfriend) drawGirlfriend();
+    // girlfriend pixel-art fallback (only if HD not ready)
+    drawGirlfriend();
     drawRocket();
     drawSparkles();
 
     drawHUDOverlay(timeLeft);
     blit();                 // copy low-res → screen
-    drawAaronRiderHD();     // <-- draw HD rider on the screen canvas (non-pixelated)
+    drawChandrimaHD();      // HD girlfriend (only appears near the end)
+    drawAaronRiderHD();     // HD rider
   }
 
   function drawEndingEmbrace(){
     g.fillStyle='rgba(20,0,42,0.5)'; g.fillRect(0,0,W,H);
     for(let i=0;i<16;i++){ const x=(Math.random()*W)|0, y=(Math.random()*H)|0; g.fillStyle='#ff8ec6'; g.fillRect(x,y,1,1); g.fillRect(x+1,y,1,1); g.fillRect(x,y+1,1,1); }
     blit();
-    drawAaronRiderHD(); // keep rider visible during vignette
+    drawChandrimaHD();
+    drawAaronRiderHD();
   }
 
   function blit(){
@@ -401,7 +446,7 @@
     ctx.drawImage(buffer, 0,0,W,H, dx*dpr, dy*dpr, dw*dpr, dh*dpr);
     ctx.restore();
 
-    // store transform so we can draw HD rider in exact screen space
+    // store transform so we can draw HD sprites in exact screen space
     lastBlit = {dx, dy, scale, dpr};
   }
 
