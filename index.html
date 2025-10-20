@@ -155,6 +155,16 @@
   const scanlines=document.getElementById('scanlines');
   const toastEl=document.getElementById('toast');
 
+  // ====== BEST SCORE HELPERS (NEW) ======
+  function setBest(val){
+    try { localStorage.setItem('bestScore', String(val)); } catch(e){}
+    best = val;
+    uiBest.textContent = best;
+  }
+  function updateBestIfNeeded(){
+    if (score > best) setBest(score);
+  }
+
   // ====== input ======
   window.addEventListener('keydown', e=>{
     if(e.code==='Space'){ e.preventDefault(); flap(); }
@@ -260,8 +270,14 @@
 
     requestAnimationFrame(loop);
   }
-  function endWin(){ playing=false; finished=true; showWin(); if(score>best){ best=score; localStorage.setItem('bestScore', best); uiBest.textContent=best; } }
-  function endCrash(){ playing=false; crashed=true; showCrash(); }
+  function endWin(){
+    updateBestIfNeeded();           // NEW
+    playing=false; finished=true; showWin();
+  }
+  function endCrash(){
+    updateBestIfNeeded();           // NEW
+    playing=false; crashed=true; showCrash();
+  }
 
   // toggles
   function togglePause(){
@@ -490,18 +506,21 @@
       const a=obstacles[i];
       a.x -= spd*dt; a.y += a.vy;
       if(a.x<-40) obstacles.splice(i,1);
-      if(!a.scored && a.x + a.r < rocket.x){ score++; a.scored = true; }
+      if(!a.scored && a.x + a.r < rocket.x){
+        score++; a.scored = true;
+        updateBestIfNeeded();                 /* NEW: live-update best */
+      }
 
       // near-miss (no collision but very close)
       const close = !girlfriend && !a.nm &&
         !(rb.x >= a.x+a.r || rb.x+rb.w <= a.x-a.r || rb.y >= a.y+a.r || rb.y+rb.h <= a.y-a.r) ? false :
-        // above is AABB separation; now compute clearance distance approx:
         (Math.abs((rb.x+rb.w/2) - a.x) <= (a.r + rb.w/2 + NEAR_MISS_PAD) &&
          Math.abs((rb.y+rb.h/2) - a.y) <= (a.r + rb.h/2 + NEAR_MISS_PAD));
 
       if(close){
         a.nm = true;
         score += NEAR_MISS_BONUS + Math.floor(combo*0.5);
+        updateBestIfNeeded();                 /* NEW: also update if near-miss bumps best */
         combo++; comboDecayAt = now + COMBO_DECAY_MS;
         spawnNearMissAura(a.x, a.y);
         spawnButterflies(2);
