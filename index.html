@@ -46,7 +46,7 @@
   const g = buffer.getContext('2d'); g.imageSmoothingEnabled=false; ctx.imageSmoothingEnabled=false;
 
   // ====== constants ======
-  const DURATION = 10000; // EXACTLY 3 minutes
+  const DURATION = 180000; // EXACTLY 3 minutes
   const GRAVITY = 0.28;
   const FLAP = -5.4;
 
@@ -56,7 +56,8 @@
   const ASTEROID_INTERVAL_MIN = 750;
   const ASTEROID_INTERVAL_MAX = 2100;
 
-  const START_GRACE = 1500; // first 1.5s: no asteroids
+  const START_GRACE = 1500;           // first 1.5s: no asteroids
+  const GF_PREVIEW_WINDOW = 30000;    // last 30s: show Chandrima, unreachable preview
   const ROCKET_X = 56;
 
   // parallax layers (cosmetic)
@@ -87,7 +88,7 @@
   };
   aaronImg.src = AARON_SRC;
 
-  // --- Girlfriend (Chandrima) HD sprite (shown at end) ---
+  // --- Girlfriend (Chandrima) HD sprite (end + preview) ---
   const GF_SRC = "chandrima.png"; // match your file exactly
   const GF_W   = 18;
   let   GF_H   = 26;
@@ -105,7 +106,12 @@
   let score=0;
   let rocket={x:ROCKET_X,y:H/2,vy:0,w:16,h:10,invuln:0};
   let obstacles=[]; let stars=[]; let nextAsteroidAt=0;
-  let girlfriend=null; // position holder for end-of-run target
+
+  // Chandrima entities
+  let gfPreview=null;     // visible last 30s, not catchable
+  let girlfriend=null;    // real target after 0:00
+
+  // visual layers / fx
   let nebula = [];
   let planets = [];
   let trail = [];
@@ -142,7 +148,7 @@
   function showIntro(){
     const html = `
       <h2 style="margin:4px 0 10px">💜 Pixel Purple Rocket — Love Run</h2>
-      <p style="margin:0 0 8px">Fly for <b>3 minutes</b>, dodge asteroids, then after 3:00 your girlfriend appears — reach her to win.</p>
+      <p style="margin:0 0 8px">Fly for <b>3 minutes</b>, dodge asteroids, then at the end you reach your love.</p>
       <div class="row"><button class="btn" id="btnStart">Start (Space/Tap)</button><button class="btn" id="btnHow">How to Play</button></div>
       <small>Mobile friendly • Pixel-art vibes • Ramps steadily</small>`;
     showCenter(html);
@@ -154,7 +160,7 @@
     <ul style="text-align:left;line-height:1.5">
       <li><b>Space</b> (desktop) or <b>tap</b> (phone) to thrust up</li>
       <li>Release to fall • Avoid asteroids</li>
-      <li>Timer hits 0:00 → she appears • Reach her to win</li>
+      <li>Last 30s: you can <i>see</i> her ahead; at 0:00 you can reach her 💞</li>
     </ul>
     <div class="row"><button class="btn" id="btnBack">Back</button></div>`;
     showCenter(html);
@@ -167,9 +173,13 @@
   function start(){
     hideCenter(); touchHint.style.display='none';
     playing=true; crashed=false; finished=false;
-    score=0; obstacles=[]; stars=[]; girlfriend=null;
+    score=0; obstacles=[]; stars=[];
     nebula=[]; planets=[];
     trail=[]; sparkles=[]; lastTrailAt=0; nextSparkleAt=0;
+
+    // reset girlfriend states
+    gfPreview=null;
+    girlfriend=null;
 
     rocket.y=H/2; rocket.vy=0; rocket.invuln=800;
     startedAt=performance.now(); lastFrame=startedAt; elapsed=0; nextAsteroidAt=0;
@@ -191,9 +201,13 @@
 
   function newStar(x=W+8,y=Math.random()*H){ const layer=Math.random()<0.6?0:(Math.random()<0.5?1:2); return {x,y,layer}; }
   function newAsteroid(){ const r=6+Math.random()*10; const y=12+Math.random()*(H-24); const vy=(Math.random()*0.6-0.3); return {x:W+20,y,r,vy,scored:false}; }
-  function spawnGirlfriend(){ girlfriend={x: W+60, y: H/2-10, w:18, h:26, sway:0}; }
 
-  // visual layers
+  function spawnGirlfriend(){ // final, catchable
+    girlfriend={x: (gfPreview? gfPreview.x : W+60), y: (gfPreview? gfPreview.y : H/2-10), w:GF_W, h:GF_H, sway:(gfPreview? gfPreview.sway:0)||0};
+    gfPreview=null;
+  }
+
+  // ======= Visual Layer Helpers (cosmetic) =======
   function newNebula(x=W+40,y=Math.random()*H){ const r=26+Math.random()*42; const a=0.08+Math.random()*0.12; const wobble=Math.random()*Math.PI*2; return {x,y,r,a,wobble}; }
   function drawNebula(dt,spd){
     for(let i=nebula.length-1;i>=0;i--){
@@ -233,7 +247,7 @@
     while(planets.length < PLANET_COUNT) planets.push(newPlanet());
   }
 
-  // FX
+  // ===== Visual FX: trail & sparkles (cosmetic) =====
   function maybeAddTrail(now,spd,dt){
     if(now-lastTrailAt>=TRAIL_SPAWN_INTERVAL){
       trail.push({ x:rocket.x-3, y:rocket.y+5, r:2, a:1 });
@@ -280,19 +294,26 @@
     }
   }
 
-  // girlfriend pixel-art fallback (used only if image not yet loaded)
-  function drawGirlfriend(){
-    if(!girlfriend) return;
+  // ===== Girlfriend pixel-art fallback (used only if image not yet loaded) =====
+  function drawGirlfriendFallback(entity){
+    if(!entity) return;
     if (gfReady) return; // HD image will be drawn on screen canvas after blit
-    const gx=girlfriend.x|0, gy=girlfriend.y|0;
-    girlfriend.sway=(girlfriend.sway||0)+0.05;
-    const sway=Math.sin(girlfriend.sway)*1.2;
+    const gx=entity.x|0, gy=entity.y|0;
+    entity.sway=(entity.sway||0)+0.05;
+    const sway=Math.sin(entity.sway)*1.2;
+    // hair
     g.fillStyle='#2b0f46'; g.fillRect(gx+4,gy+1,10,8);
+    // face
     g.fillStyle='#ffd1ea'; g.fillRect(gx+6,gy+4,6,6);
+    // eyes
     g.fillStyle='#2b0f46'; g.fillRect(gx+7,gy+6,1,1); g.fillRect(gx+10,gy+6,1,1);
+    // body/dress
     g.fillStyle='#b28bff'; g.fillRect(gx+5,gy+11,8,10);
+    // legs
     g.fillStyle='#ffd1ea'; g.fillRect(gx+7,gy+21,2,4); g.fillRect(gx+9,gy+21,2,4);
-    g.fillStyle='#ff6fb3'; g.fillRect(gx+1, gy+2+(sway|0),1,1); g.fillRect(gx+2, gy+1+(sway|0),1,1); g.fillRect(gx+2, gy+2+(sway|0),1,1);
+    // little heart
+    g.fillStyle='#ff6fb3';
+    g.fillRect(gx+1, gy+2+(sway|0),1,1); g.fillRect(gx+2, gy+1+(sway|0),1,1); g.fillRect(gx+2, gy+2+(sway|0),1,1);
   }
 
   // ===== HD rider & girlfriend on the SCREEN canvas =====
@@ -311,11 +332,11 @@
     ctx.imageSmoothingEnabled = prev;
   }
 
-  function drawChandrimaHD(){
-    if(!girlfriend || !gfReady) return;
+  function drawChibiHD(entity){
+    if(!entity || !gfReady) return;
     const {dx, dy, scale, dpr} = lastBlit;
-    const sx = dx*dpr + (girlfriend.x) * scale * dpr;
-    const sy = dy*dpr + (girlfriend.y) * scale * dpr;
+    const sx = dx*dpr + (entity.x) * scale * dpr;
+    const sy = dy*dpr + (entity.y) * scale * dpr;
     const sw = GF_W * scale * dpr;
     const sh = GF_H * scale * dpr;
     const prev = ctx.imageSmoothingEnabled;
@@ -329,7 +350,6 @@
   function drawStars(dt,spd){ for(const s of stars){ const p=[0.25,0.5,1.0][s.layer]; s.x-=spd*p*dt; if(s.x<-4) Object.assign(s,newStar()); g.fillStyle=['#4b2a6b','#9d6cff','#e2c6ff'][s.layer]; g.fillRect(s.x|0,s.y|0,1,1);} }
   function drawRocket(){ const {x,y}=rocket; const px=(ix,iy,w,h,c)=>{g.fillStyle=c;g.fillRect((x+ix)|0,(y+iy)|0,w,h);}; px(0,2,10,6,'#b28bff'); px(9,3,3,4,'#e2c6ff'); px(3,4,3,2,'#12001f'); px(0,1,2,2,'#8f5bff'); px(0,7,2,2,'#8f5bff'); const flame=Math.max(0,-rocket.vy*0.8); px(-2,4-(flame>0?1:0),2,2+((flame>2)?1:0),'#ff9ad2'); if(rocket.invuln>0&&((performance.now()%200)|0)<100){ g.globalCompositeOperation='lighter'; px(-1,2,1,6,'#ffffff'); g.globalCompositeOperation='source-over'; } }
   function drawAsteroid(a){ g.fillStyle='#6e49a3'; g.beginPath(); g.arc(a.x|0,a.y|0,a.r|0,0,Math.PI*2); g.fill(); g.fillStyle='#8a68c0'; g.fillRect((a.x-1)|0,(a.y-2)|0,2,2); }
-
   function drawHUDOverlay(timeLeft){ if(timeLeft<7000){ const k=1-timeLeft/7000; g.fillStyle=`rgba(255,170,255,${0.08+0.25*k})`; g.fillRect(0,H-24,W,24);} }
 
   function aabb(x,y,w,h, x2,y2,w2,h2){ return x < x2+w2 && x+w > x2 && y < y2+h2 && y+h > y2; }
@@ -354,15 +374,31 @@
     maybeDripSparkles(now);
     updateSparkles(dt, spd);
 
-    // spawning
+    // spawning & preview logic
     if (elapsed < DURATION) {
       if (elapsed > START_GRACE && now > nextAsteroidAt) {
         obstacles.push(newAsteroid());
         const interval = asteroidIntervalAt(elapsed);
         nextAsteroidAt = now + interval * (0.7 + Math.random()*0.6);
       }
+      // spawn preview in the last 30 seconds (unreachable)
+      if (!gfPreview && timeLeft <= GF_PREVIEW_WINDOW) {
+        gfPreview = { x: W - 40, y: H/2 - 10, w: GF_W, h: GF_H, sway: 0 };
+      }
     } else {
+      // AFTER 3:00 -> convert preview to real girlfriend (catchable)
       if (!girlfriend) spawnGirlfriend();
+    }
+
+    // keep preview ahead of the rocket (so you can't reach her yet)
+    if (gfPreview && !girlfriend) {
+      // small float
+      gfPreview.sway += 0.05;
+      // always stay at least 110px ahead of rocket; never go off-screen
+      const minAhead = rocket.x + 110;
+      const target = Math.min(W - 40, Math.max(minAhead, gfPreview.x - spd*dt*0.85));
+      gfPreview.x = target;
+      gfPreview.y = H/2 - 10 + Math.sin(gfPreview.sway)*1.0;
     }
 
     // move obstacles & score
@@ -377,9 +413,9 @@
     // draw frame
     drawFrame(dt, spd, timeLeft);
 
-    // collisions (disabled once girlfriend appears)
+    // collisions (disabled only when real girlfriend exists)
     if(rocket.invuln<=0 && !girlfriend){
-      const rb=rocket;
+      const rb = {x:rocket.x,y:rocket.y,w:rocket.w,h:rocket.h};
       for(const a of obstacles){
         if(aabb(rb.x,rb.y,rb.w,rb.h, a.x-a.r,a.y-a.r,a.r*2,a.r*2)){
           endCrash(); ui(); return;
@@ -389,6 +425,7 @@
 
     // approach her and finish
     if(girlfriend){
+      girlfriend.sway += 0.05;
       girlfriend.x -= spd*dt*0.85;
       if(girlfriend.x < rocket.x + 6){
         drawEndingEmbrace(); ui(); endWin(); return;
@@ -408,21 +445,26 @@
     drawTrail();
 
     for(const a of obstacles){ drawAsteroid(a); }
-    drawGirlfriend();      // pixel-art fallback only (HD drawn after blit)
+    // fallback pixel-art if images not loaded yet
+    drawGirlfriendFallback(gfPreview);
+    drawGirlfriendFallback(girlfriend);
+
     drawRocket();
     drawSparkles();
 
     drawHUDOverlay(timeLeft);
     blit();                 // copy low-res → screen
-    drawChandrimaHD();      // HD girlfriend (appears near the end)
-    drawAaronRiderHD();     // HD rider
+    // HD draws (if images ready)
+    drawChibiHD(gfPreview);
+    drawChibiHD(girlfriend);
+    drawAaronRiderHD();
   }
 
   function drawEndingEmbrace(){
     g.fillStyle='rgba(20,0,42,0.5)'; g.fillRect(0,0,W,H);
     for(let i=0;i<16;i++){ const x=(Math.random()*W)|0, y=(Math.random()*H)|0; g.fillStyle='#ff8ec6'; g.fillRect(x,y,1,1); g.fillRect(x+1,y,1,1); g.fillRect(x,y+1,1,1); }
     blit();
-    drawChandrimaHD();
+    drawChibiHD(girlfriend);
     drawAaronRiderHD();
   }
 
@@ -447,9 +489,9 @@
   }
 
   function ui(timeLeft=Math.max(0,DURATION-(performance.now()-startedAt)), spd=speedAt(elapsed)){
-    uiScore.textContent = score;
-    uiSpeed.textContent = ((spd/BASE_SPEED).toFixed(1)+'x');
-    uiTimer.textContent = formatTime(timeLeft);
+    document.getElementById('score').textContent = score;
+    document.getElementById('speed').textContent = ((spd/BASE_SPEED).toFixed(1)+'x');
+    document.getElementById('timer').textContent = formatTime(timeLeft);
   }
 
   // init
