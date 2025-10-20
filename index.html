@@ -1,252 +1,416 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1" />
-<title>Mini Aaron Flight ✈️ Canada → Bangladesh</title>
-<style>
-  :root{
-    --bg:#0f0a1a; --ink:#efe8ff; --accent:#b87bff; --danger:#ff4d6d;
-  }
-  *{box-sizing:border-box}
-  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:system-ui,Inter,Segoe UI,Roboto,Arial,sans-serif}
-  .wrap{display:flex;flex-direction:column;align-items:center;gap:8px;padding:12px}
-  canvas{width:min(100vw - 24px,960px);height:auto;display:block;border-radius:14px;outline:1px solid rgba(255,255,255,.08);background:#120c22;touch-action:none}
-  .hud{width:min(100vw - 24px,960px);display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:14px;opacity:.9}
-  .rec{display:flex;align-items:center;gap:6px;letter-spacing:.06em}
-  .dot{width:10px;height:10px;border-radius:50%;background:#ff3b3b;box-shadow:0 0 10px #ff3b3b}
-  .tip{font-size:12px;opacity:.8}
-  .btnbar{width:min(100vw - 24px,960px);display:flex;justify-content:space-between;gap:8px}
-  button{background:#24153f;color:var(--ink);border:1px solid rgba(255,255,255,.14);padding:10px 12px;border-radius:10px;font-weight:600;cursor:pointer}
-  button:hover{background:#2c1f52}
-</style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pixel Purple Rocket — Love Run</title>
+  <style>
+    :root {
+      --bg1:#12001f; /* deep purple */
+      --bg2:#2a0a4a; /* mid purple */
+      --fg:#e2c6ff;  /* soft lavender */
+      --accent:#b28bff; /* bright purple */
+      --danger:#ff6fb3; /* pink */
+      --success:#8dffca; /* mint */
+    }
+    html,body{height:100%;margin:0;background:linear-gradient(180deg,var(--bg1),var(--bg2));color:var(--fg);font-family: ui-rounded, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";}
+    #wrap{position:fixed;inset:0;display:flex;flex-direction:column;}
+    #hud{display:flex;gap:.75rem;align-items:center;justify-content:space-between;padding:.75rem 1rem;font-weight:700;letter-spacing:.02em;}
+    #hud .pill{background:rgba(255,255,255,.08);padding:.35rem .6rem;border-radius:999px;backdrop-filter: blur(6px); box-shadow: 0 0 0 1px rgba(255,255,255,.05) inset;}
+    #game{flex:1;position:relative;}
+    canvas{position:absolute;inset:0;width:100%;height:100%;image-rendering: pixelated;image-rendering: crisp-edges;}
+    #centerMsg{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;text-align:center;padding:1rem;}
+    #centerMsg .card{pointer-events:auto;max-width:680px;background:rgba(42,10,74,.72);border:1px solid rgba(255,255,255,.15);border-radius:18px;padding:18px 16px;box-shadow:0 20px 60px rgba(0,0,0,.45)}
+    .btn{cursor:pointer;display:inline-flex;align-items:center;gap:.5rem;padding:.6rem .9rem;border-radius:14px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:var(--fg);font-weight:700}
+    .btn:hover{background:rgba(255,255,255,.14)}
+    .row{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;justify-content:center;margin-top:.5rem}
+    small{opacity:.85}
+    #touchHint{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);opacity:.9;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);padding:.4rem .7rem;border-radius:999px;font-weight:700}
+  </style>
 </head>
 <body>
-<div class="wrap">
-  <div class="hud">
-    <div class="rec"><span class="dot"></span><span>&lt;REC&gt;</span></div>
-    <div><strong>Canada → Bangladesh</strong> • <span id="km">12000</span> km to go</div>
-    <div>⏱️ <span id="timer">00:00</span></div>
+  <div id="wrap">
+    <div id="hud">
+      <div class="pill">⏱️ <span id="timer">03:00</span></div>
+      <div class="pill">⭐ Score: <span id="score">0</span></div>
+      <div class="pill">🚀 Speed: <span id="speed">1.0x</span></div>
+      <div class="pill">🕹️ Controls: <span id="controls">Space / Tap</span></div>
+    </div>
+    <div id="game">
+      <canvas id="c"></canvas>
+      <div id="centerMsg" hidden>
+        <div class="card" id="centerCard"></div>
+      </div>
+      <div id="touchHint">TAP to thrust</div>
+    </div>
   </div>
-  <canvas id="game" width="960" height="540" aria-label="Mini Aaron flight game"></canvas>
-  <div class="btnbar">
-    <button id="playPause">Pause</button>
-    <div class="tip">Tap/hold or press Space/↑ to fly up • Avoid clouds & birds • Reach 🇧🇩 for the hug 💜</div>
-  </div>
-</div>
 
 <script>
 (() => {
-  // ===== Canvas setup (retina-safe) =====
-  const canvas = document.getElementById('game');
-  const ctx = canvas.getContext('2d');
-  let DPR = Math.max(1, window.devicePixelRatio || 1);
-  function resizeCanvas() {
-    const w = 960, h = 540;
-    DPR = Math.max(1, window.devicePixelRatio || 1);
-    canvas.width = w * DPR; canvas.height = h * DPR;
-    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  // ======= Pixel canvas setup (low-res offscreen scaled up) =======
+  const view = document.getElementById('c');
+  const ctx = view.getContext('2d');
+  const W = 320, H = 180; // base pixel resolution (16:9)
+  const buffer = document.createElement('canvas');
+  buffer.width = W; buffer.height = H;
+  const g = buffer.getContext('2d');
+  g.imageSmoothingEnabled = false; ctx.imageSmoothingEnabled = false;
+
+  function resize() {
+    // canvas fills parent via CSS; no need to set size here.
+    // But keep pixel density consistent by drawing to buffer and then blitting.
   }
-  resizeCanvas(); addEventListener('resize', resizeCanvas);
+  addEventListener('resize', resize);
+  resize();
 
-  // ===== HUD =====
-  const kmEl = document.getElementById('km');
-  const timerEl = document.getElementById('timer');
-  const playBtn = document.getElementById('playPause');
+  // ======= Game constants =======
+  const DURATION = 180000; // 3 minutes in ms
+  const GRAVITY = 0.28;    // px/frame^2 (at 60fps-ish)
+  const FLAP = -5.4;       // upward impulse
+  const BASE_SPEED = 0.9;  // world scroll px per ms at t=0
+  const MAX_SPEED = 2.6;   // px per ms at t=DURATION
+  const ASTEROID_INTERVAL_MIN = 600; // ms between spawns at max speed
+  const ASTEROID_INTERVAL_MAX = 1400;// ms between spawns at base speed
+  const ROCKET_X = 56;     // rocket x position
 
-  // ===== Game constants =====
-  const W = 960, H = 540, SKY_TOP = 40, GROUND_Y = H - 80;
-  const gravity = 0.38, thrust = 0.8, maxVy = 7;
-  const baseScroll = 4.2;
-  const totalDistanceKm = 12000;
-  let kmRemaining = totalDistanceKm;
+  // ======= Game state =======
+  let playing = false, finished = false, crashed = false, startedAt = 0, elapsed = 0, lastFrame = 0;
+  let score = 0;
+  let rocket = {x: ROCKET_X, y: H/2, vy: 0, w: 16, h: 10, invuln: 0};
+  let obstacles = [];
+  let stars = [];
+  let nextAsteroidAt = 0;
+  let girlfriend = null; // appears near the end
 
-  // distance compress (finish ~2 min)
-  const displayKmPerSecStart = 120;
-  const displayKmPerSecEnd = 160;
+  const uiTimer = document.getElementById('timer');
+  const uiScore = document.getElementById('score');
+  const uiSpeed = document.getElementById('speed');
+  const centerMsg = document.getElementById('centerMsg');
+  const centerCard = document.getElementById('centerCard');
+  const touchHint = document.getElementById('touchHint');
 
-  // Player
-  const plane = { x: Math.round(W*0.22), y: Math.round(H*0.5), vy: 0, w: 60, h: 36, tilt: 0 };
+  // Prevent page scroll on space
+  window.addEventListener('keydown', e => { if (e.code === 'Space') { e.preventDefault(); flap(); }});
+  window.addEventListener('touchstart', () => flap(), {passive:true});
+  window.addEventListener('mousedown', () => flap());
 
-  // Obstacles
-  const obstacles = [];
-  let spawnTimer = 0, spawnInterval = 1100, worldSpeed = baseScroll, difficulty = 1;
+  function flap(){ if(!playing && !finished){ start(); } if(playing){ rocket.vy = FLAP; }}
 
-  // Background parallax
-  const bgClouds = Array.from({length: 6}, () => ({
-    x: Math.random()*W, y: 60 + Math.random()*220, r: 30+Math.random()*40, s: 0.5+Math.random()*0.9
-  }));
-
-  // State
-  let running = true, gameOver = false, victory = false;
-  let startedAt = performance.now(), last = performance.now(), hold = false;
-
-  // Input
-  function press(){ hold = true; }
-  function release(){ hold = false; }
-  addEventListener('keydown', e=>{
-    if (e.code==='Space'||e.code==='ArrowUp'){ e.preventDefault(); press(); }
-    if (e.code==='KeyP') togglePause();
-    if (e.code==='Enter' && (gameOver||victory)) resetGame();
-  }, {passive:false});
-  addEventListener('keyup', e=>{
-    if (e.code==='Space'||e.code==='ArrowUp'){ e.preventDefault(); release(); }
-  }, {passive:false});
-  canvas.addEventListener('pointerdown', ()=>press(), {passive:true});
-  addEventListener('pointerup', ()=>release(), {passive:true});
-  document.addEventListener('visibilitychange', ()=>{ if (document.hidden) setRunning(false); });
-  playBtn.addEventListener('click', ()=>togglePause());
-
-  function togglePause(){ if (victory||gameOver){ resetGame(); return; } setRunning(!running); }
-  function setRunning(v){ running = v; playBtn.textContent = v?'Pause':'Resume'; if(v){ last=performance.now(); loop(); } }
-  function resetGame(){
-    obstacles.length=0; plane.y=Math.round(H*0.5); plane.vy=0; plane.tilt=0;
-    spawnTimer=0; spawnInterval=1100; worldSpeed=baseScroll; difficulty=1;
-    kmRemaining=totalDistanceKm; startedAt=performance.now();
-    gameOver=false; victory=false; running=true; playBtn.textContent='Pause'; last=performance.now(); loop();
+  function start(){
+    playing = true; crashed = false; finished = false; score = 0; obstacles=[]; stars=[]; girlfriend=null; rocket.y=H/2; rocket.vy=0; rocket.invuln=800;
+    startedAt = performance.now(); lastFrame = startedAt; elapsed = 0; nextAsteroidAt = 0; hideCenter();
+    // seed stars
+    for(let i=0;i<80;i++) stars.push(newStar(Math.random()*W, Math.random()*H));
+    requestAnimationFrame(loop);
   }
 
-  // Helpers
-  const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
-  const lerp = (a,b,t)=>a+(b-a)*t;
-  const ease = t=>t<.5 ? 2*t*t : 1 - Math.pow(-2*t+2,2)/2;
-  const tElapsedSec = ()=> (performance.now()-startedAt)/1000;
+  function endWin(){ playing=false; finished=true; showWin(); }
+  function endCrash(){ playing=false; crashed=true; showCrash(); }
 
-  // Spawn
-  function spawnObstacle(){
-    const r = Math.random(); let type,w,h,y,speedMul;
-    if (r<0.55){ type='cloud'; w=90+Math.random()*80; h=50+Math.random()*30;
-      y=SKY_TOP+Math.random()*(GROUND_Y-200-SKY_TOP); speedMul=1;
-    } else if (r<0.85){ type='bird'; w=44; h=28;
-      y=SKY_TOP+60+Math.random()*(GROUND_Y-160-SKY_TOP); speedMul=1.35;
-    } else { type='storm'; w=50; h=120+Math.random()*120;
-      const top=Math.random()<0.5; y=top?SKY_TOP:(GROUND_Y-h); speedMul=1.1;
+  function speedAt(t){ // px per ms
+    const k = Math.min(1, t / DURATION);
+    return BASE_SPEED + (MAX_SPEED - BASE_SPEED) * k;
+  }
+
+  function asteroidIntervalAt(t){
+    const k = Math.min(1, t / DURATION);
+    return ASTEROID_INTERVAL_MAX + (ASTEROID_INTERVAL_MIN - ASTEROID_INTERVAL_MAX) * k;
+  }
+
+  function formatTime(ms){
+    const s = Math.ceil(Math.max(0, ms)/1000);
+    const m = Math.floor(s/60).toString().padStart(2,'0');
+    const ss = (s%60).toString().padStart(2,'0');
+    return `${m}:${ss}`;
+  }
+
+  function newStar(x= W+8, y = Math.random()*H){
+    const layer = Math.random()<0.6? 0: (Math.random()<0.5?1:2); // 0 far, 1 mid, 2 near
+    return {x,y,layer};
+  }
+
+  function newAsteroid(t){
+    const r = 6 + Math.random()*10; // radius
+    const gapY = 12 + Math.random()*(H-24);
+    const vy = (Math.random()*0.6-0.3); // slight drift
+    return {x: W+20, y: gapY, r, vy, scored:false};
+  }
+
+  function spawnGirlfriend(){
+    girlfriend = {x: W+60, y: H/2-10, w: 18, h: 26, sway:0};
+  }
+
+  // ======= Rendering helpers (pixel art vibe) =======
+  function clear(){
+    // space background gradient
+    const grd = g.createLinearGradient(0,0,0,H);
+    grd.addColorStop(0, '#14002a');
+    grd.addColorStop(1, '#2a0a4a');
+    g.fillStyle = grd;
+    g.fillRect(0,0,W,H);
+  }
+
+  function drawStars(dt, spd){
+    for(let s of stars){
+      const parallax = [0.25, 0.5, 1.0][s.layer];
+      s.x -= spd*parallax*dt;
+      if(s.x<-4){ Object.assign(s, newStar()); }
+      g.fillStyle = ['#4b2a6b','#9d6cff','#e2c6ff'][s.layer];
+      g.fillRect(s.x|0, s.y|0, 1, 1);
     }
-    obstacles.push({type,x:W+40,y,w,h,speed:worldSpeed*speedMul});
   }
 
-  // Collision (shrunken hitbox)
-  function hit(a,b){
-    const shrink=0.8, ax=a.x-(a.w*(1-shrink)/2), ay=a.y-(a.h*(1-shrink)/2),
-          aw=a.w*shrink, ah=a.h*shrink;
-    return ax<b.x+b.w && ax+aw>b.x && ay<b.y+b.h && ay+ah>b.y;
+  function drawRocket(){
+    const {x,y} = rocket;
+    // Simple pixel rocket (16x10)
+    const px = (ix,iy,w,h,color) => { g.fillStyle=color; g.fillRect((x+ix)|0,(y+iy)|0,w,h); };
+    // body
+    px(0,2,10,6,'#b28bff');
+    px(9,3,3,4,'#e2c6ff'); // nose
+    // window
+    px(3,4,3,2,'#12001f');
+    // fins
+    px(0,1,2,2,'#8f5bff'); px(0,7,2,2,'#8f5bff');
+    // flame
+    const flame = Math.max(0, -rocket.vy*0.8);
+    px(-2,4-(flame>0?1:0),2,2+((flame>2)?1:0),'#ff9ad2');
+    if(rocket.invuln>0 && ((performance.now()%200)|0)<100){ // blink
+      g.globalCompositeOperation='lighter';
+      px(-1,2,1,6,'#ffffff');
+      g.globalCompositeOperation='source-over';
+    }
   }
 
-  // Drawing helpers
-  function cloudShape(x,y,r){
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI*2);
-    ctx.arc(x+r*0.9, y+6, r*0.8, 0, Math.PI*2);
-    ctx.arc(x-r*0.9, y+10, r*0.7, 0, Math.PI*2);
-    ctx.closePath(); ctx.fill();
+  function drawAsteroid(a){
+    // jaggy purple rock
+    g.fillStyle = '#6e49a3';
+    g.beginPath();
+    g.arc(a.x|0, a.y|0, a.r|0, 0, Math.PI*2);
+    g.fill();
+    g.fillStyle = '#8a68c0';
+    g.fillRect((a.x-1)|0, (a.y-2)|0, 2, 2);
   }
-  function roundedRect(x,y,w,h,r){ const rr=Math.min(r,w/2,h/2);
-    ctx.beginPath(); ctx.moveTo(x+rr,y);
-    ctx.arcTo(x+w,y,x+w,y+h,rr); ctx.arcTo(x+w,y+h,x,y+h,rr);
-    ctx.arcTo(x,y+h,x,y,rr); ctx.arcTo(x,y,x+w,y,rr); ctx.fill();
+
+  function drawGirlfriend(){
+    if(!girlfriend) return;
+    const gx = girlfriend.x|0, gy = girlfriend.y|0;
+    girlfriend.sway += 0.05;
+    const sway = Math.sin(girlfriend.sway)*1.2;
+    // simple chibi sprite (18x26) — hair, face, dress, little heart
+    // hair
+    g.fillStyle = '#2b0f46'; g.fillRect(gx+4, gy+1, 10, 8);
+    // face
+    g.fillStyle = '#ffd1ea'; g.fillRect(gx+6, gy+4, 6, 6);
+    // eyes
+    g.fillStyle = '#2b0f46'; g.fillRect(gx+7, gy+6,1,1); g.fillRect(gx+10, gy+6,1,1);
+    // body/dress
+    g.fillStyle = '#b28bff'; g.fillRect(gx+5, gy+11, 8, 10);
+    // legs
+    g.fillStyle = '#ffd1ea'; g.fillRect(gx+7, gy+21, 2, 4); g.fillRect(gx+9, gy+21, 2, 4);
+    // little heart floating
+    g.fillStyle = '#ff6fb3';
+    g.fillRect(gx+1, gy+2+(sway|0),1,1); g.fillRect(gx+2, gy+1+(sway|0),1,1); g.fillRect(gx+2, gy+2+(sway|0),1,1);
   }
-  function drawSky(){
-    const g=ctx.createLinearGradient(0,0,0,H); g.addColorStop(0,'#1a1140'); g.addColorStop(1,'#0c0830');
-    ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
-    ctx.globalAlpha=.35; for(let i=0;i<80;i++){ const x=(i*97)%W, y=(i*53)%(H-160)+20; ctx.fillStyle='rgba(255,255,255,.9)'; ctx.fillRect(x,y,2,2); }
-    ctx.globalAlpha=1;
-    bgClouds.forEach(c=>{ c.x-=c.s*0.6; if(c.x<-120) c.x=W+60; ctx.fillStyle='rgba(255,255,255,0.08)'; cloudShape(c.x,c.y,c.r); });
-    ctx.fillStyle='#0d0929'; ctx.fillRect(0,GROUND_Y+24,W,H-(GROUND_Y+24));
+
+  function drawHUDOverlay(timeLeft){
+    // horizon glow near the end
+    if(timeLeft < 7000){
+      const k = 1 - timeLeft/7000;
+      g.fillStyle = `rgba(255, 170, 255, ${0.08+0.25*k})`;
+      g.fillRect(0, H-24, W, 24);
+    }
   }
-  function drawPlane(p){
-    ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.tilt);
-    ctx.fillStyle='#e6d4ff'; roundedRect(-30,-14,60,28,12);
-    ctx.fillStyle='#b87bff'; ctx.beginPath(); ctx.ellipse(25,0,14,12,0,0,Math.PI*2); ctx.fill();
-    ctx.fillStyle='#caa8ff'; roundedRect(-6,4,32,10,5); roundedRect(-28,-12,16,8,4);
-    ctx.fillStyle='#3b2c5f'; roundedRect(2,-6,18,12,4);
-    ctx.fillStyle='#ffe4f1'; ctx.fillRect(6,-2,4,4);
+
+  function aabb(x,y,w,h, x2,y2,w2,h2){ return x < x2+w2 && x+w > x2 && y < y2+h2 && y+h > y2; }
+  function rocketBox(){ return {x:rocket.x, y:rocket.y, w:rocket.w, h:rocket.h}; }
+
+  // ======= UI helpers =======
+  function showCenter(html){ centerCard.innerHTML = html; centerMsg.hidden = false; }
+  function hideCenter(){ centerMsg.hidden = true; }
+
+  function showIntro(){
+    const html = `
+      <h2 style="margin:4px 0 10px">💜 Pixel Purple Rocket — Love Run</h2>
+      <p style="margin:0 0 8px">Fly your rocket for <b>3 minutes</b>, dodge asteroids, and reach your girlfriend at the end. 
+      <b>Space</b> or <b>Tap</b> to thrust. Release to fall.</p>
+      <div class="row">
+        <button class="btn" id="btnStart">Start (Space/Tap)</button>
+        <button class="btn" id="btnHow">How to Play</button>
+      </div>
+      <small>Mobile friendly • Pixel‑art vibes • Increasing difficulty</small>
+    `;
+    showCenter(html);
+    document.getElementById('btnStart').onclick = () => { start(); };
+    document.getElementById('btnHow').onclick = () => showHow();
+  }
+
+  function showHow(){
+    const html = `
+      <h3 style="margin:4px 0 10px">Controls</h3>
+      <ul style="text-align:left;line-height:1.5">
+        <li><b>Space</b> (desktop) or <b>tap/click</b> (phone) to thrust up</li>
+        <li>Release to fall — avoid purple asteroids</li>
+        <li>Lasts exactly 3:00. Reach the end to win 💞</li>
+      </ul>
+      <div class="row"><button class="btn" id="btnBack">Back</button></div>
+    `;
+    showCenter(html);
+    document.getElementById('btnBack').onclick = () => showIntro();
+  }
+
+  function showCrash(){
+    const html = `
+      <h2 style="margin:4px 0 10px">💥 Oops! You crashed</h2>
+      <p>Score: <b>${score}</b></p>
+      <div class="row"><button class="btn" id="btnRetry">Try Again</button></div>
+    `;
+    showCenter(html);
+    document.getElementById('btnRetry').onclick = () => start();
+  }
+
+  function showWin(){
+    const html = `
+      <h2 style="margin:4px 0 10px">💞 You made it!</h2>
+      <p>After a starlit journey, you arrive and embrace your love. Score: <b>${score}</b></p>
+      <div class="row">
+        <button class="btn" id="btnReplay">Replay</button>
+      </div>
+    `;
+    showCenter(html);
+    document.getElementById('btnReplay').onclick = () => start();
+  }
+
+  // ======= Main loop =======
+  function loop(now){
+    if(!playing) return;
+    const dt = Math.min(40, now - lastFrame); // clamp dt in ms
+    lastFrame = now;
+    elapsed = now - startedAt;
+    const timeLeft = Math.max(0, DURATION - elapsed);
+
+    const spd = speedAt(elapsed); // px per ms
+
+    // physics
+    rocket.vy += GRAVITY;
+    rocket.y += rocket.vy;
+    if(rocket.y < 2){ rocket.y = 2; rocket.vy=0; }
+    if(rocket.y > H-rocket.h-2){ rocket.y = H-rocket.h-2; rocket.vy=0; }
+    if(rocket.invuln>0) rocket.invuln -= dt;
+
+    // spawn asteroids until near the end
+    if(timeLeft > 4500){
+      if(now > nextAsteroidAt){
+        obstacles.push(newAsteroid(now));
+        const interval = asteroidIntervalAt(elapsed);
+        nextAsteroidAt = now + interval * (0.7 + Math.random()*0.6);
+      }
+    } else {
+      // stop spawning and introduce girlfriend
+      if(!girlfriend) spawnGirlfriend();
+    }
+
+    // move obstacles & scoring
+    for(let i=obstacles.length-1;i>=0;i--){
+      const a = obstacles[i];
+      a.x -= spd*dt;
+      a.y += a.vy;
+      if(a.x < -40) obstacles.splice(i,1);
+      // score when you pass
+      if(!a.scored && a.x + a.r < rocket.x){ score++; a.scored = true; }
+    }
+
+    // move stars
+    drawFrame(dt, spd, timeLeft);
+
+    // collisions
+    if(rocket.invuln<=0 && !girlfriend){
+      const rb = rocketBox();
+      for(const a of obstacles){
+        if(aabb(rb.x,rb.y,rb.w,rb.h, a.x-a.r, a.y-a.r, a.r*2, a.r*2)){
+          endCrash();
+          ui();
+          return;
+        }
+      }
+    }
+
+    // girlfriend approach and finish
+    if(girlfriend){
+      girlfriend.x -= spd*dt*0.85; // slightly slower so you catch up
+      if(girlfriend.x < rocket.x + 6){
+        // embrace: little vignette and win
+        endWin();
+        ui();
+        drawEndingEmbrace();
+        return;
+      }
+    }
+
+    ui(timeLeft, spd);
+    requestAnimationFrame(loop);
+  }
+
+  function drawEndingEmbrace(){
+    // overlay with hearts
+    g.fillStyle = 'rgba(20,0,42,0.5)';
+    g.fillRect(0,0,W,H);
+    for(let i=0;i<16;i++){
+      const x = (Math.random()*W)|0, y=(Math.random()*H)|0;
+      g.fillStyle = '#ff8ec6';
+      g.fillRect(x,y,1,1); g.fillRect(x+1,y,1,1); g.fillRect(x,y+1,1,1);
+    }
+    blit();
+  }
+
+  function drawFrame(dt, spd, timeLeft){
+    // background and stars first
+    clear();
+    drawStars(dt, spd);
+
+    // obstacles
+    for(const a of obstacles){ drawAsteroid(a); }
+
+    // girlfriend or rocket
+    if(girlfriend) drawGirlfriend();
+    drawRocket();
+
+    drawHUDOverlay(timeLeft);
+
+    // finally, copy low-res buffer to full canvas
+    blit();
+  }
+
+  function blit(){
+    // Fit buffer into view canvas keeping aspect ratio
+    const vw = view.clientWidth, vh = view.clientHeight;
+    const scale = Math.min(vw/W, vh/H);
+    const dw = (W*scale)|0, dh = (H*scale)|0;
+    const dx = ((vw - dw)/2)|0, dy = ((vh - dh)/2)|0;
+
+    // handle high-DPI backing store
+    const dpr = window.devicePixelRatio || 1;
+    if(view.width !== vw*dpr || view.height !== vh*dpr){ view.width = vw*dpr; view.height = vh*dpr; ctx.imageSmoothingEnabled = false; }
+
+    ctx.clearRect(0,0,view.width,view.height);
+    ctx.save();
+    ctx.imageSmoothingEnabled = false; // ensure pixelated
+    ctx.drawImage(buffer, 0,0,W,H, dx*dpr, dy*dpr, dw*dpr, dh*dpr);
     ctx.restore();
   }
-  function drawObstacle(o){
-    if(o.type==='cloud'){ ctx.fillStyle='rgba(255,255,255,0.18)'; cloudShape(o.x+o.w/2,o.y+o.h/2,Math.max(o.w,o.h)/2); }
-    else if(o.type==='bird'){ ctx.fillStyle='#ffd8e1'; roundedRect(o.x,o.y,o.w,o.h,8); ctx.fillStyle='#ff9aa7'; ctx.fillRect(o.x+o.w-6,o.y+o.h/2-2,8,4); }
-    else{ ctx.fillStyle='rgba(184,123,255,0.25)'; roundedRect(o.x,o.y,o.w,o.h,10);
-          ctx.strokeStyle='rgba(255,230,120,0.5)'; ctx.beginPath(); ctx.moveTo(o.x+o.w/2,o.y+6);
-          ctx.lineTo(o.x+o.w/2-6,o.y+28); ctx.lineTo(o.x+o.w/2+4,o.y+48); ctx.stroke(); }
-  }
-  function drawScanlines(){ ctx.save(); ctx.globalAlpha=0.08; ctx.fillStyle='#000'; for(let y=0;y<H;y+=4) ctx.fillRect(0,y,W,1); ctx.restore(); }
-  function drawProgressBar(){
-    const pad=20, y=H-28, w=W-pad*2, p=(totalDistanceKm-kmRemaining)/totalDistanceKm;
-    ctx.fillStyle='rgba(255,255,255,0.12)'; roundedRect(pad,y,w,10,5);
-    ctx.fillStyle='#b87bff'; roundedRect(pad,y,Math.max(10,w*p),10,5);
-    ctx.font='14px sans-serif'; ctx.globalAlpha=.9; ctx.fillText('🇨🇦',pad-2,y+9); ctx.fillText('🇧🇩',W-pad-16,y+9); ctx.globalAlpha=1;
-    const px = pad + w*p; ctx.fillStyle='#e6d4ff'; ctx.beginPath(); ctx.moveTo(px,y-8); ctx.lineTo(px-6,y-2); ctx.lineTo(px+6,y-2); ctx.fill();
-  }
-  function drawOverlay(text,sub,showRestart){
-    ctx.save(); ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.fillRect(0,0,W,H);
-    ctx.fillStyle='#fff'; ctx.textAlign='center'; ctx.font='bold 32px system-ui,sans-serif'; ctx.fillText(text,W/2,H/2-10);
-    ctx.font='16px system-ui,sans-serif'; ctx.fillText(sub,W/2,H/2+16); if(showRestart) ctx.fillText('Press Enter or tap to restart',W/2,H/2+42); ctx.restore();
-  }
-  function drawVictory(){
-    const g=ctx.createLinearGradient(0,0,0,H); g.addColorStop(0,'#2b174f'); g.addColorStop(1,'#200c35');
-    ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
-    for(let i=0;i<40;i++){ const x=(i*137+performance.now()/30)%W, y=(i*71%(H-200))+40; ctx.globalAlpha=(Math.sin((performance.now()/300+i)*0.7)+1)/4+0.2; ctx.fillStyle='#ff86a6'; ctx.fillRect(x,y,2,2); }
-    ctx.globalAlpha=1;
-    const cx=W/2, base=H/2+30, bounce=Math.sin(performance.now()/350)*2;
-    const chibi=(x,skin,outfit,off)=>{ ctx.fillStyle=outfit; roundedRect(x-20,base-40+bounce,40,60,14); ctx.fillStyle=skin; ctx.beginPath(); ctx.arc(x,base-60+bounce,22,0,Math.PI*2); ctx.fill();
-      ctx.fillStyle='#2a1c3e'; ctx.fillRect(x-8+off,base-64+bounce,4,6); ctx.fillRect(x+4+off,base-64+bounce,4,6);
-      ctx.strokeStyle='#c9b6ff'; ctx.strokeRect(x-10+off,base-68+bounce,10,10); ctx.strokeRect(x+2+off,base-68+bounce,10,10); ctx.beginPath(); ctx.moveTo(x+0+off,base-63+bounce); ctx.lineTo(x+2+off,base-63+bounce); ctx.stroke();
-    };
-    chibi(cx-26,'#ffe6cc','#5a3a85',-2); chibi(cx+26,'#ffe0d8','#ff8fb1',2);
-    ctx.strokeStyle='#ffd6ea'; ctx.lineWidth=6; ctx.beginPath();
-    ctx.moveTo(cx-46,base-28+bounce); ctx.quadraticCurveTo(cx-24,base-6+bounce,cx,base-6+bounce);
-    ctx.moveTo(cx+46,base-28+bounce); ctx.quadraticCurveTo(cx+24,base-6+bounce,cx,base-6+bounce); ctx.stroke();
-    ctx.fillStyle='#fff'; ctx.textAlign='center'; ctx.font='bold 24px system-ui,sans-serif'; ctx.fillText('Made it to Bangladesh!',W/2,80);
-    ctx.font='16px system-ui,sans-serif'; ctx.fillText('Mini Aaron & Zarifa finally hug 💞',W/2,106);
-    ctx.font='14px system-ui,sans-serif'; ctx.fillText('Press Enter or tap to play again',W/2,132);
+
+  function ui(timeLeft = Math.max(0, DURATION - (performance.now()-startedAt)), spd = speedAt(elapsed)){
+    document.getElementById('score').textContent = score;
+    document.getElementById('speed').textContent = ( (spd/BASE_SPEED).toFixed(1) + 'x');
+    document.getElementById('timer').textContent = formatTime(timeLeft);
   }
 
-  // Main loop
-  function loop(){
-    if(!running) return;
-    const now=performance.now(), dtMs=now-last, dt=Math.min(48,dtMs)/16.6667; last=now;
-    update(dtMs,dt); render(); if(running) requestAnimationFrame(loop);
-  }
+  // Initial screen
+  showIntro();
 
-  function update(dtMs,dt){
-    if(gameOver||victory) return;
-    difficulty += 0.00045 * dtMs;
-    worldSpeed = baseScroll * (1 + (difficulty-1)*0.35);
-    spawnInterval = Math.max(580, 1100 - (difficulty-1)*160);
-
-    plane.vy += gravity*dt; if(hold) plane.vy -= thrust*dt;
-    plane.vy = clamp(plane.vy,-maxVy,maxVy); plane.y += plane.vy*3.2;
-    plane.y = clamp(plane.y,SKY_TOP+20,GROUND_Y-20); plane.tilt = clamp((-plane.vy)/18,-0.35,0.35);
-
-    spawnTimer += dtMs; if(spawnTimer>=spawnInterval){ spawnTimer=0; spawnObstacle(); }
-    for(let i=obstacles.length-1;i>=0;i--){ const o=obstacles[i]; o.x -= o.speed*3.2; if(o.x+o.w<-10) obstacles.splice(i,1);
-      if(hit({x:plane.x-30,y:plane.y-18,w:60,h:36},o)){ gameOver=true; setRunning(false); }
-    }
-
-    const prog=(totalDistanceKm-kmRemaining)/totalDistanceKm;
-    const kmPerSec = lerp(displayKmPerSecStart,displayKmPerSecEnd,ease(prog));
-    kmRemaining = Math.max(0, kmRemaining - kmPerSec*(dtMs/1000));
-    kmEl.textContent = Math.ceil(kmRemaining);
-
-    const t=Math.floor((performance.now()-startedAt)/1000), mm=String(Math.floor(t/60)).padStart(2,'0'), ss=String(t%60).padStart(2,'0');
-    timerEl.textContent = `${mm}:${ss}`;
-    if(kmRemaining<=0){ victory=true; setRunning(false); }
-  }
-
-  function render(){
-    drawSky();
-    ctx.fillStyle='rgba(255,255,255,0.8)'; ctx.font='14px system-ui,sans-serif'; ctx.fillText('Canada → Bangladesh',18,24);
-    obstacles.forEach(drawObstacle);
-    drawPlane(plane);
-    drawProgressBar();
-    drawScanlines();
-    ctx.strokeStyle='rgba(255,255,255,0.08)'; ctx.strokeRect(8,8,W-16,H-16);
-    if(gameOver) drawOverlay('Plane hit something! 💥','Tip: hold to climb, release to glide.',true);
-    else if(victory) drawVictory();
-  }
-
-  loop();
-  canvas.addEventListener('click',()=>{ if(gameOver||victory) resetGame(); });
+  // Hide touch hint after first interaction
+  const hideHint = () => { touchHint.style.display='none'; window.removeEventListener('touchstart', hideHint); window.removeEventListener('mousedown', hideHint); };
+  window.addEventListener('touchstart', hideHint, {passive:true});
+  window.addEventListener('mousedown', hideHint);
 })();
 </script>
 </body>
