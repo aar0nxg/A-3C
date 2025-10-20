@@ -12,7 +12,6 @@
     #hud .pill{background:rgba(255,255,255,.08);padding:.35rem .6rem;border-radius:999px;backdrop-filter: blur(6px); box-shadow: 0 0 0 1px rgba(255,255,255,.05) inset;}
     #game{flex:1;position:relative;}
     canvas{position:absolute;inset:0;width:100%;height:100%;image-rendering: pixelated;image-rendering: crisp-edges;}
-    /* use display toggle so overlays never stick */
     #centerMsg{position:absolute;inset:0;display:none;place-items:center;pointer-events:none;text-align:center;padding:1rem;}
     #centerMsg .card{pointer-events:auto;max-width:680px;background:rgba(42,10,74,.72);border:1px solid rgba(255,255,255,.15);border-radius:18px;padding:18px 16px;box-shadow:0 20px 60px rgba(0,0,0,.45)}
     .btn{cursor:pointer;display:inline-flex;align-items:center;gap:.5rem;padding:.6rem .9rem;border-radius:14px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:var(--fg);font-weight:700}
@@ -32,9 +31,7 @@
     </div>
     <div id="game">
       <canvas id="c"></canvas>
-      <div id="centerMsg">
-        <div class="card" id="centerCard"></div>
-      </div>
+      <div id="centerMsg"><div class="card" id="centerCard"></div></div>
       <div id="touchHint">TAP to thrust</div>
     </div>
   </div>
@@ -76,7 +73,7 @@
   const SPARKLE_INTERVAL = 60;          // ms between drip spawns
 
   // --- Rider (visual only) ---
-  const AARON_SRC = "aaron.jpg";  // put your JPG next to index.html or set correct path
+  const AARON_SRC = "aaron.jpg";  // ensure the file name matches
   const AARON_W   = 12;           // rider width (game pixels)
   let   AARON_H   = 12;           // height auto-set by aspect
   const AARON_OFF_X = 3;          // offset from rocket.x
@@ -316,19 +313,15 @@
   }
 
   // ===== Rider draw (visual only) =====
-function drawAaronRider(){
-  if(!aaronReady) return;
-  const rx = (rocket.x + AARON_OFF_X) | 0;
-  const ry = (rocket.y + AARON_OFF_Y) | 0;
-
-  // temporarily enable smoothing for this draw only
-  const prev = g.imageSmoothingEnabled;
-  g.imageSmoothingEnabled = true; // smooth Aaron image only
-  g.drawImage(aaronImg, rx, ry, AARON_W, AARON_H);
-  g.imageSmoothingEnabled = prev;
-}
-
-
+  function drawAaronRider(){
+    if(!aaronReady) return;
+    const rx = (rocket.x + AARON_OFF_X) | 0;
+    const ry = (rocket.y + AARON_OFF_Y) | 0;
+    const prev = g.imageSmoothingEnabled;
+    g.imageSmoothingEnabled = true; // smooth Aaron image only
+    g.drawImage(aaronImg, rx, ry, AARON_W, AARON_H);
+    g.imageSmoothingEnabled = prev;
+  }
 
   // rendering
   function clear(){ const grd=g.createLinearGradient(0,0,0,H); grd.addColorStop(0,'#14002a'); grd.addColorStop(1,'#2a0a4a'); g.fillStyle=grd; g.fillRect(0,0,W,H); }
@@ -419,7 +412,7 @@ function drawAaronRider(){
     if(girlfriend) drawGirlfriend();
     drawRocket();
 
-    drawAaronRider();       // NEW: mini Aaron rides the rocket
+    drawAaronRider();       // mini Aaron rides the rocket
 
     drawSparkles();         // in front of rocket
 
