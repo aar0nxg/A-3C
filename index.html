@@ -12,6 +12,7 @@
     #hud .pill{background:rgba(255,255,255,.08);padding:.35rem .6rem;border-radius:999px;backdrop-filter: blur(6px); box-shadow: 0 0 0 1px rgba(255,255,255,.05) inset;}
     #game{flex:1;position:relative;}
     canvas{position:absolute;inset:0;width:100%;height:100%;image-rendering: pixelated;image-rendering: crisp-edges;}
+    /* use display toggle so overlays never stick */
     #centerMsg{position:absolute;inset:0;display:none;place-items:center;pointer-events:none;text-align:center;padding:1rem;}
     #centerMsg .card{pointer-events:auto;max-width:680px;background:rgba(42,10,74,.72);border:1px solid rgba(255,255,255,.15);border-radius:18px;padding:18px 16px;box-shadow:0 20px 60px rgba(0,0,0,.45)}
     .btn{cursor:pointer;display:inline-flex;align-items:center;gap:.5rem;padding:.6rem .9rem;border-radius:14px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:var(--fg);font-weight:700}
@@ -40,31 +41,35 @@
 
 <script>
 (() => {
+  // ====== pixel canvas ======
   const view = document.getElementById('c');
   const ctx = view.getContext('2d');
   const W = 320, H = 180;
   const buffer = document.createElement('canvas'); buffer.width=W; buffer.height=H;
   const g = buffer.getContext('2d'); g.imageSmoothingEnabled=false; ctx.imageSmoothingEnabled=false;
 
+  // ====== constants ======
   const DURATION = 180000; // EXACTLY 3 minutes
   const GRAVITY = 0.28;
   const FLAP = -5.4;
 
-  // SLOWER OVERALL FEEL
-  const BASE_SPEED = 0.38;
-  const MAX_SPEED  = 1.8;
-  const ASTEROID_INTERVAL_MIN = 820;
-  const ASTEROID_INTERVAL_MAX = 2300;
+  // ONLY CHANGE: slow overall feel
+  const BASE_SPEED = 0.42;          // was 0.48
+  const MAX_SPEED  = 2.0;           // was 2.3
+  const ASTEROID_INTERVAL_MIN = 750;  // was 650
+  const ASTEROID_INTERVAL_MAX = 2100; // was 1900
 
-  const START_GRACE = 1500;
+  const START_GRACE = 1500;    // first 1.5s: no asteroids
   const ROCKET_X = 56;
 
+  // ====== state ======
   let playing=false, finished=false, crashed=false, startedAt=0, elapsed=0, lastFrame=0;
   let score=0;
   let rocket={x:ROCKET_X,y:H/2,vy:0,w:16,h:10,invuln:0};
   let obstacles=[]; let stars=[]; let nextAsteroidAt=0;
-  let girlfriend=null;
+  let girlfriend=null; // appears ONLY after 3:00
 
+  // ====== ui ======
   const uiTimer=document.getElementById('timer');
   const uiScore=document.getElementById('score');
   const uiSpeed=document.getElementById('speed');
@@ -72,19 +77,23 @@
   const centerCard=document.getElementById('centerCard');
   const touchHint=document.getElementById('touchHint');
 
+  // inputs
   window.addEventListener('keydown', e=>{ if(e.code==='Space'){ e.preventDefault(); flap(); }});
   window.addEventListener('touchstart', ()=>flap(), {passive:true});
   window.addEventListener('mousedown', ()=>flap());
   function flap(){ if(!playing && !finished){ start(); } if(playing){ rocket.vy = FLAP; } }
 
+  // overlay helpers
   function showCenter(html){ centerCard.innerHTML=html; centerMsg.style.display='grid'; }
   function hideCenter(){ centerMsg.style.display='none'; centerCard.innerHTML=''; }
 
+  // screens
   function showIntro(){
-    const html = `<h2>💜 Pixel Purple Rocket — Love Run</h2>
-    <p>Fly for <b>3 minutes</b>, dodge asteroids, then after 3:00 your girlfriend appears — reach her to win.</p>
-    <div class="row"><button class="btn" id="btnStart">Start (Space/Tap)</button><button class="btn" id="btnHow">How to Play</button></div>
-    <small>Mobile friendly • Pixel-art vibes • Ramps steadily</small>`;
+    const html = `
+      <h2 style="margin:4px 0 10px">💜 Pixel Purple Rocket — Love Run</h2>
+      <p style="margin:0 0 8px">Fly for <b>3 minutes</b>, dodge asteroids, then after 3:00 your girlfriend appears — reach her to win.</p>
+      <div class="row"><button class="btn" id="btnStart">Start (Space/Tap)</button><button class="btn" id="btnHow">How to Play</button></div>
+      <small>Mobile friendly • Pixel-art vibes • Ramps steadily</small>`;
     showCenter(html);
     document.getElementById('btnStart').onclick=()=>start();
     document.getElementById('btnHow').onclick =()=>showHow();
@@ -103,18 +112,29 @@
   function showCrash(){ const html=`<h2>💥 Oops! You crashed</h2><p>Score: <b>${score}</b></p><div class="row"><button class="btn" id="btnRetry">Try Again</button></div>`; showCenter(html); document.getElementById('btnRetry').onclick=()=>start(); }
   function showWin(){ const html=`<h2>💞 You made it!</h2><p>You reached her after a 3-minute run. Score: <b>${score}</b></p><div class="row"><button class="btn" id="btnReplay">Replay</button></div>`; showCenter(html); document.getElementById('btnReplay').onclick=()=>start(); }
 
-  function start(){ hideCenter(); touchHint.style.display='none'; playing=true; crashed=false; finished=false; score=0; obstacles=[]; stars=[]; girlfriend=null; rocket.y=H/2; rocket.vy=0; rocket.invuln=800; startedAt=performance.now(); lastFrame=startedAt; elapsed=0; nextAsteroidAt=0; for(let i=0;i<80;i++) stars.push(newStar(Math.random()*W, Math.random()*H)); requestAnimationFrame(loop); }
+  // start/end
+  function start(){
+    hideCenter(); touchHint.style.display='none';
+    playing=true; crashed=false; finished=false;
+    score=0; obstacles=[]; stars=[]; girlfriend=null;
+    rocket.y=H/2; rocket.vy=0; rocket.invuln=800;
+    startedAt=performance.now(); lastFrame=startedAt; elapsed=0; nextAsteroidAt=0;
+    for(let i=0;i<80;i++) stars.push(newStar(Math.random()*W, Math.random()*H));
+    requestAnimationFrame(loop);
+  }
   function endWin(){ playing=false; finished=true; showWin(); }
   function endCrash(){ playing=false; crashed=true; showCrash(); }
 
+  // helpers
   function speedAt(t){ const k=Math.min(1,t/DURATION); return BASE_SPEED + (MAX_SPEED-BASE_SPEED)*k; }
   function asteroidIntervalAt(t){ const k=Math.min(1,t/DURATION); return ASTEROID_INTERVAL_MAX + (ASTEROID_INTERVAL_MIN - ASTEROID_INTERVAL_MAX)*k; }
   function formatTime(ms){ const s=Math.ceil(Math.max(0,ms)/1000); const m=String(Math.floor(s/60)).padStart(2,'0'); const ss=String(s%60).padStart(2,'0'); return `${m}:${ss}`; }
 
   function newStar(x=W+8,y=Math.random()*H){ const layer=Math.random()<0.6?0:(Math.random()<0.5?1:2); return {x,y,layer}; }
   function newAsteroid(){ const r=6+Math.random()*10; const y=12+Math.random()*(H-24); const vy=(Math.random()*0.6-0.3); return {x:W+20,y,r,vy,scored:false}; }
-  function spawnGirlfriend(){ girlfriend={x:W+60,y:H/2-10,w:18,h:26,sway:0}; }
+  function spawnGirlfriend(){ girlfriend={x: W+60, y: H/2-10, w:18, h:26, sway:0}; }
 
+  // rendering
   function clear(){ const grd=g.createLinearGradient(0,0,0,H); grd.addColorStop(0,'#14002a'); grd.addColorStop(1,'#2a0a4a'); g.fillStyle=grd; g.fillRect(0,0,W,H); }
   function drawStars(dt,spd){ for(const s of stars){ const p=[0.25,0.5,1.0][s.layer]; s.x-=spd*p*dt; if(s.x<-4) Object.assign(s,newStar()); g.fillStyle=['#4b2a6b','#9d6cff','#e2c6ff'][s.layer]; g.fillRect(s.x|0,s.y|0,1,1);} }
   function drawRocket(){ const {x,y}=rocket; const px=(ix,iy,w,h,c)=>{g.fillStyle=c;g.fillRect((x+ix)|0,(y+iy)|0,w,h);}; px(0,2,10,6,'#b28bff'); px(9,3,3,4,'#e2c6ff'); px(3,4,3,2,'#12001f'); px(0,1,2,2,'#8f5bff'); px(0,7,2,2,'#8f5bff'); const flame=Math.max(0,-rocket.vy*0.8); px(-2,4-(flame>0?1:0),2,2+((flame>2)?1:0),'#ff9ad2'); if(rocket.invuln>0&&((performance.now()%200)|0)<100){ g.globalCompositeOperation='lighter'; px(-1,2,1,6,'#ffffff'); g.globalCompositeOperation='source-over'; } }
@@ -125,6 +145,7 @@
   function aabb(x,y,w,h,x2,y2,w2,h2){ return x<x2+w2 && x+w>x2 && y<y2+h2 && y+h>y2; }
   function rocketBox(){ return {x:rocket.x,y:rocket.y,w:rocket.w,h:rocket.h}; }
 
+  // main loop
   function loop(now){
     if(!playing) return;
     const dt=Math.min(40, now-lastFrame); lastFrame=now;
@@ -132,12 +153,14 @@
     const timeLeft = Math.max(0, DURATION - elapsed);
     const spd = speedAt(elapsed);
 
+    // physics
     rocket.vy += GRAVITY;
     rocket.y  += rocket.vy;
     if(rocket.y<2){ rocket.y=2; rocket.vy=0; }
     if(rocket.y>H-rocket.h-2){ rocket.y=H-rocket.h-2; rocket.vy=0; }
     if(rocket.invuln>0) rocket.invuln -= dt;
 
+    // spawning: during the 3 minutes (except first 1.5s)
     if (elapsed < DURATION) {
       if (elapsed > START_GRACE && now > nextAsteroidAt) {
         obstacles.push(newAsteroid());
@@ -145,9 +168,11 @@
         nextAsteroidAt = now + interval * (0.7 + Math.random()*0.6);
       }
     } else {
+      // AFTER 3:00: stop spawning & show girlfriend
       if (!girlfriend) spawnGirlfriend();
     }
 
+    // move obstacles & score
     for (let i=obstacles.length-1;i>=0;i--){
       const a=obstacles[i];
       a.x -= spd*dt;
@@ -156,16 +181,67 @@
       if(!a.scored && a.x + a.r < rocket.x){ score++; a.scored = true; }
     }
 
-    clear(); drawStars(dt, spd); for(const a of obstacles) drawAsteroid(a); if(girlfriend) drawGirlfriend(); drawRocket(); drawHUDOverlay(timeLeft); blit();
+    // draw frame
+    clear();
+    drawStars(dt, spd);
+    for(const a of obstacles) drawAsteroid(a);
+    if(girlfriend) drawGirlfriend();
+    drawRocket();
+    drawHUDOverlay(timeLeft);
+    blit();
 
-    if(rocket.invuln<=0 && !girlfriend){ const rb=rocketBox(); for(const a of obstacles){ if(aabb(rb.x,rb.y,rb.w,rb.h, a.x-a.r,a.y-a.r,a.r*2,a.r*2)){ endCrash(); ui(); return; } } }
+    // collisions (disabled once girlfriend appears)
+    if(rocket.invuln<=0 && !girlfriend){
+      const rb=rocketBox();
+      for(const a of obstacles){
+        if(aabb(rb.x,rb.y,rb.w,rb.h, a.x-a.r,a.y-a.r,a.r*2,a.r*2)){
+          endCrash(); ui(); return;
+        }
+      }
+    }
 
-    if(girlfriend){ girlfriend.x -= spd*dt*0.85; if(girlfriend.x < rocket.x + 6){ drawEndingEmbrace(); ui(); endWin(); return; } }
+    // after 3:00, approach her and finish by touching her
+    if(girlfriend){
+      girlfriend.x -= spd*dt*0.85; // slightly slower so you catch up
+      if(girlfriend.x < rocket.x + 6){
+        drawEndingEmbrace(); ui(); endWin(); return;
+      }
+    }
 
     ui(timeLeft, spd);
     requestAnimationFrame(loop);
   }
 
-  function drawEndingEmbrace(){ g.fillStyle='rgba(20,0,42,0.5)'; g.fillRect(0,0,W,H); for(let i=0;i<16;i++){ const x=(Math.random()*W)|0, y=(Math.random()*H)|0; g.fillStyle='#ff8ec6'; g.fillRect(x,y,1,1); g.fillRect(x+1,y,1,1); g.fillRect(x,y+1,1,1); } blit(); }
-  function blit(){ const vw=view.clientWidth, vh=view.clientHeight; const scale=Math.min(vw/W, vh/H); const dw=(W*scale)|0, dh=(H*scale)|0; const dx=((vw-dw)/2)|0, dy=((vh-dh)/2)|0; const dpr=window.devicePixelRatio||1; if(view.width!==vw*dpr || view.height!==vh*dpr){ view.width=vw*dpr; view.height=vh*dpr; ctx.imageSmoothingEnabled=false; } ctx.clearRect(0,0,view.width,view.height); ctx.save(); ctx.imageSmoothingEnabled=false; ctx.drawImage(buffer,0,0,W,H, dx*dpr,dy*dpr,dw*dpr,dh*dpr); ctx.restore(); }
-  function ui(timeLeft=Math.max(0,DURATION-(performance.now()-startedAt)), spd=speedAt(elapsed)){ uiScore.textContent = score; uiSpeed.textContent = ((spd/BASE_SPEED).toFixed(1)+'
+  function drawEndingEmbrace(){
+    g.fillStyle='rgba(20,0,42,0.5)'; g.fillRect(0,0,W,H);
+    for(let i=0;i<16;i++){ const x=(Math.random()*W)|0, y=(Math.random()*H)|0; g.fillStyle='#ff8ec6'; g.fillRect(x,y,1,1); g.fillRect(x+1,y,1,1); g.fillRect(x,y+1,1,1); }
+    blit();
+  }
+
+  function blit(){
+    const vw=view.clientWidth, vh=view.clientHeight;
+    const scale=Math.min(vw/W, vh/H);
+    const dw=(W*scale)|0, dh=(H*scale)|0;
+    const dx=((vw-dw)/2)|0, dy=((vh-dh)/2)|0;
+    const dpr=window.devicePixelRatio||1;
+    if(view.width!==vw*dpr || view.height!==vh*dpr){ view.width=vw*dpr; view.height=vh*dpr; ctx.imageSmoothingEnabled=false; }
+    ctx.clearRect(0,0,view.width,view.height);
+    ctx.save(); ctx.imageSmoothingEnabled=false;
+    ctx.drawImage(buffer,0,0,W,H, dx*dpr,dy*dpr,dw*dpr,dh*dpr);
+    ctx.restore();
+  }
+  function ui(timeLeft=Math.max(0,DURATION-(performance.now()-startedAt)), spd=speedAt(elapsed)){
+    uiScore.textContent = score;
+    uiSpeed.textContent = ((spd/BASE_SPEED).toFixed(1)+'x');
+    uiTimer.textContent = formatTime(timeLeft);
+  }
+
+  // init
+  showIntro();
+  const hideHint=()=>{ touchHint.style.display='none'; window.removeEventListener('touchstart',hideHint); window.removeEventListener('mousedown',hideHint); };
+  window.addEventListener('touchstart',hideHint,{passive:true});
+  window.addEventListener('mousedown',hideHint);
+})();
+</script>
+</body>
+</html>
