@@ -52,11 +52,14 @@
   const DURATION = 180000; // EXACTLY 3 minutes
   const GRAVITY = 0.28;
   const FLAP = -5.4;
-  const BASE_SPEED = 0.55;     // slower start (was 0.9)
-  const MAX_SPEED  = 2.6;      // speed at end of 3:00
-  const ASTEROID_INTERVAL_MIN = 600;   // fast spawns late
-  const ASTEROID_INTERVAL_MAX = 1700;  // gentle early spawns (was 1400)
-  const START_GRACE = 1500;            // first 1.5s: no asteroids
+
+  // SLOWER OVERALL FEEL (only tweaks below)
+  const BASE_SPEED = 0.48;     // was 0.55
+  const MAX_SPEED  = 2.3;      // was 2.6
+  const ASTEROID_INTERVAL_MIN = 650;    // was 600
+  const ASTEROID_INTERVAL_MAX = 1900;   // was 1700
+
+  const START_GRACE = 1500;    // first 1.5s: no asteroids
   const ROCKET_X = 56;
 
   // ====== state ======
@@ -135,7 +138,7 @@
 
   function newStar(x=W+8,y=Math.random()*H){ const layer=Math.random()<0.6?0:(Math.random()<0.5?1:2); return {x,y,layer}; }
   function newAsteroid(){ const r=6+Math.random()*10; const y=12+Math.random()*(H-24); const vy=(Math.random()*0.6-0.3); return {x:W+20,y,r,vy,scored:false}; }
-  function spawnGirlfriend(){ girlfriend={x:W+60,y:H/2-10,w:18,h:26,sway:0}; }
+  function spawnGirlfriend(){ girlfriend={x: W+60, y: H/2-10, w:18, h:26, sway:0}; }
 
   // rendering
   function clear(){ const grd=g.createLinearGradient(0,0,0,H); grd.addColorStop(0,'#14002a'); grd.addColorStop(1,'#2a0a4a'); g.fillStyle=grd; g.fillRect(0,0,W,H); }
@@ -163,9 +166,7 @@
     if(rocket.y>H-rocket.h-2){ rocket.y=H-rocket.h-2; rocket.vy=0; }
     if(rocket.invuln>0) rocket.invuln -= dt;
 
-    // spawning:
-    // - during the 3 minutes: spawn asteroids (except first 1.5s)
-    // - AFTER 3 minutes: stop spawning, show girlfriend
+    // spawning: during the 3 minutes (except first 1.5s)
     if (elapsed < DURATION) {
       if (elapsed > START_GRACE && now > nextAsteroidAt) {
         obstacles.push(newAsteroid());
@@ -173,6 +174,7 @@
         nextAsteroidAt = now + interval * (0.7 + Math.random()*0.6);
       }
     } else {
+      // AFTER 3:00: stop spawning & show girlfriend
       if (!girlfriend) spawnGirlfriend();
     }
 
