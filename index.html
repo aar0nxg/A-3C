@@ -19,6 +19,12 @@
     .row{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;justify-content:center;margin-top:.5rem}
     small{opacity:.85}
     #touchHint{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);opacity:.9;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);padding:.4rem .7rem;border-radius:999px;font-weight:700}
+
+    /* tiny polish for the ending image */
+    @keyframes fadeIn {
+      from { opacity: 0; transform: scale(0.95); }
+      to   { opacity: 1; transform: scale(1); }
+    }
   </style>
 </head>
 <body>
@@ -46,11 +52,11 @@
   const g = buffer.getContext('2d'); g.imageSmoothingEnabled=false; ctx.imageSmoothingEnabled=false;
 
   // ====== constants ======
-  const DURATION = 1000; // EXACTLY 3 minutes
+  const DURATION = 180000; // EXACTLY 3 minutes
   const GRAVITY = 0.28;
   const FLAP = -5.4;
 
-  // pacing (approved earlier)
+  // pacing (approved)
   const BASE_SPEED = 0.42;
   const MAX_SPEED  = 2.0;
   const ASTEROID_INTERVAL_MIN = 750;
@@ -74,7 +80,7 @@
   const SPARKLE_INTERVAL = 60;
 
   // --- Rider (HD on screen canvas) ---
-  const AARON_SRC = "aaron.jpg"; // change if your file is .png
+  const AARON_SRC = "aaron.jpg"; // or .png if that's your file
   const AARON_W   = 12;
   let   AARON_H   = 12;
   const AARON_OFF_X = 3;
@@ -100,6 +106,12 @@
     gfReady = true;
   };
   gfImg.src = GF_SRC;
+
+  // --- Ending embrace image (shown on win card) ---
+  const embraceImg = new Image();
+  let embraceReady = false;
+  embraceImg.onload = () => embraceReady = true;
+  embraceImg.src = "embrace.png"; // add this file next to index.html
 
   // ====== state ======
   let playing=false, finished=false, crashed=false, startedAt=0, elapsed=0, lastFrame=0;
@@ -167,7 +179,21 @@
     document.getElementById('btnBack').onclick=()=>showIntro();
   }
   function showCrash(){ const html=`<h2>💥 Oops! You crashed</h2><p>Score: <b>${score}</b></p><div class="row"><button class="btn" id="btnRetry">Try Again</button></div>`; showCenter(html); document.getElementById('btnRetry').onclick=()=>start(); }
-  function showWin(){ const html=`<h2>💞 You made it!</h2><p>You reached her after a 3-minute run. Score: <b>${score}</b></p><div class="row"><button class="btn" id="btnReplay">Replay</button></div>`; showCenter(html); document.getElementById('btnReplay').onclick=()=>start(); }
+
+  // NEW: win card shows embrace image (fades in)
+  function showWin(){
+    const imgTag = embraceReady
+      ? `<img src="embrace.png" alt="Aaron and Chandrima embrace" style="margin-top:10px;width:160px;max-width:70%;border-radius:12px;box-shadow:0 0 20px rgba(255,170,255,0.4);animation:fadeIn 1.5s ease-out;">`
+      : '';
+    const html = `
+      <h2>💞 You made it!</h2>
+      <p>You reached her after a 3-minute run. Score: <b>${score}</b></p>
+      ${imgTag}
+      <div class="row"><button class="btn" id="btnReplay">Replay</button></div>
+    `;
+    showCenter(html);
+    document.getElementById('btnReplay').onclick=()=>start();
+  }
 
   // start/end
   function start(){
@@ -392,9 +418,7 @@
 
     // keep preview ahead of the rocket (so you can't reach her yet)
     if (gfPreview && !girlfriend) {
-      // small float
       gfPreview.sway += 0.05;
-      // always stay at least 110px ahead of rocket; never go off-screen
       const minAhead = rocket.x + 110;
       const target = Math.min(W - 40, Math.max(minAhead, gfPreview.x - spd*dt*0.85));
       gfPreview.x = target;
@@ -461,8 +485,8 @@
   }
 
   function drawEndingEmbrace(){
-    g.fillStyle='rgba(20,0,42,0.5)'; g.fillRect(0,0,W,H);
-    for(let i=0;i<16;i++){ const x=(Math.random()*W)|0, y=(Math.random()*H)|0; g.fillStyle='#ff8ec6'; g.fillRect(x,y,1,1); g.fillRect(x+1,y,1,1); g.fillRect(x,y+1,1,1); }
+    g.fillStyle='rgba(20,0,42,0.6)'; g.fillRect(0,0,W,H);
+    for(let i=0;i<20;i++){ const x=(Math.random()*W)|0, y=(Math.random()*H)|0; g.fillStyle='#ff8ec6'; g.fillRect(x,y,1,1); g.fillRect(x+1,y,1,1); g.fillRect(x,y+1,1,1); }
     blit();
     drawChibiHD(girlfriend);
     drawAaronRiderHD();
