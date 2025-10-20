@@ -20,7 +20,7 @@
     small{opacity:.85}
     #touchHint{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);opacity:.9;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);padding:.4rem .7rem;border-radius:999px;font-weight:700}
 
-    /* tiny polish for the ending image */
+    
     @keyframes fadeIn {
       from { opacity: 0; transform: scale(0.95); }
       to   { opacity: 1; transform: scale(1); }
@@ -44,43 +44,43 @@
 
 <script>
 (() => {
-  // ====== pixel canvas ======
+  
   const view = document.getElementById('c');
   const ctx = view.getContext('2d');
   const W = 320, H = 180;
   const buffer = document.createElement('canvas'); buffer.width=W; buffer.height=H;
   const g = buffer.getContext('2d'); g.imageSmoothingEnabled=false; ctx.imageSmoothingEnabled=false;
 
-  // ====== constants ======
-  const DURATION = 1000; // EXACTLY 3 minutes
+  
+  const DURATION = 180000;
   const GRAVITY = 0.28;
   const FLAP = -5.4;
 
-  // pacing (approved)
+  
   const BASE_SPEED = 0.42;
   const MAX_SPEED  = 2.0;
   const ASTEROID_INTERVAL_MIN = 750;
   const ASTEROID_INTERVAL_MAX = 2100;
 
-  const START_GRACE = 1500;           // first 1.5s: no asteroids
-  const GF_PREVIEW_WINDOW = 30000;    // last 30s: show Chandrima, unreachable preview
+  const START_GRACE = 1500;           
+  const GF_PREVIEW_WINDOW = 30000;    
   const ROCKET_X = 56;
 
-  // parallax layers (cosmetic)
+  
   const NEBULA_COUNT   = 6;
   const PLANET_COUNT   = 2;
   const NEBULA_PARALLAX = 0.18;
   const PLANET_PARALLAX = 0.10;
 
-  // FX (cosmetic)
+  
   const TRAIL_MAX = 42;
   const TRAIL_SPAWN_INTERVAL = 40;
   const SPARKLE_BURST = 12;
   const SPARKLE_DRIP = 2;
   const SPARKLE_INTERVAL = 60;
 
-  // --- Rider (HD on screen canvas) ---
-  const AARON_SRC = "aaron.jpg"; // or .png if that's your file
+  
+  const AARON_SRC = "aaron.jpg"; 
   const AARON_W   = 12;
   let   AARON_H   = 12;
   const AARON_OFF_X = 3;
@@ -94,8 +94,8 @@
   };
   aaronImg.src = AARON_SRC;
 
-  // --- Girlfriend (Chandrima) HD sprite (end + preview) ---
-  const GF_SRC = "chandrima.png"; // match your file exactly
+  
+  const GF_SRC = "chandrima.png";
   const GF_W   = 18;
   let   GF_H   = 26;
   const gfImg = new Image();
@@ -107,23 +107,23 @@
   };
   gfImg.src = GF_SRC;
 
-  // --- Ending embrace image (shown on win card) ---
+  
   const embraceImg = new Image();
   let embraceReady = false;
   embraceImg.onload = () => embraceReady = true;
-  embraceImg.src = "embrace.png"; // add this file next to index.html
+  embraceImg.src = "embrace.png";
 
-  // ====== state ======
+  
   let playing=false, finished=false, crashed=false, startedAt=0, elapsed=0, lastFrame=0;
   let score=0;
   let rocket={x:ROCKET_X,y:H/2,vy:0,w:16,h:10,invuln:0};
   let obstacles=[]; let stars=[]; let nextAsteroidAt=0;
 
-  // Chandrima entities
-  let gfPreview=null;     // visible last 30s, not catchable
-  let girlfriend=null;    // real target after 0:00
+  
+  let gfPreview=null;    
+  let girlfriend=null; 
 
-  // visual layers / fx
+  
   let nebula = [];
   let planets = [];
   let trail = [];
@@ -131,7 +131,7 @@
   let lastTrailAt = 0;
   let nextSparkleAt = 0;
 
-  // ====== ui ======
+  
   const uiTimer=document.getElementById('timer');
   const uiScore=document.getElementById('score');
   const uiSpeed=document.getElementById('speed');
@@ -139,7 +139,7 @@
   const centerCard=document.getElementById('centerCard');
   const touchHint=document.getElementById('touchHint');
 
-  // inputs
+  
   window.addEventListener('keydown', e=>{ if(e.code==='Space'){ e.preventDefault(); flap(); }});
   window.addEventListener('touchstart', ()=>flap(), {passive:true});
   window.addEventListener('mousedown', ()=>flap());
@@ -152,11 +152,11 @@
     }
   }
 
-  // overlay helpers
+  
   function showCenter(html){ centerCard.innerHTML=html; centerMsg.style.display='grid'; }
   function hideCenter(){ centerMsg.style.display='none'; centerCard.innerHTML=''; }
 
-  // screens
+ 
   function showIntro(){
     const html = `
       <h2 style="margin:4px 0 10px">💜 Pixel Purple Rocket — Love Run</h2>
@@ -180,7 +180,7 @@
   }
   function showCrash(){ const html=`<h2>💥 Oops! You crashed</h2><p>Score: <b>${score}</b></p><div class="row"><button class="btn" id="btnRetry">Try Again</button></div>`; showCenter(html); document.getElementById('btnRetry').onclick=()=>start(); }
 
-  // NEW: win card shows embrace image (fades in)
+  
   function showWin(){
     const imgTag = embraceReady
       ? `<img src="embrace.png" alt="Aaron and Chandrima embrace" style="margin-top:10px;width:160px;max-width:70%;border-radius:12px;box-shadow:0 0 20px rgba(255,170,255,0.4);animation:fadeIn 1.5s ease-out;">`
@@ -195,7 +195,7 @@
     document.getElementById('btnReplay').onclick=()=>start();
   }
 
-  // start/end
+  
   function start(){
     hideCenter(); touchHint.style.display='none';
     playing=true; crashed=false; finished=false;
@@ -203,14 +203,14 @@
     nebula=[]; planets=[];
     trail=[]; sparkles=[]; lastTrailAt=0; nextSparkleAt=0;
 
-    // reset girlfriend states
+    
     gfPreview=null;
     girlfriend=null;
 
     rocket.y=H/2; rocket.vy=0; rocket.invuln=800;
     startedAt=performance.now(); lastFrame=startedAt; elapsed=0; nextAsteroidAt=0;
 
-    // seed stars & layers
+    
     for(let i=0;i<80;i++) stars.push(newStar(Math.random()*W, Math.random()*H));
     for (let i=0;i<NEBULA_COUNT;i++) nebula.push(newNebula(Math.random()*W, Math.random()*H));
     for (let i=0;i<PLANET_COUNT;i++) planets.push(newPlanet(Math.random()*W, 20 + Math.random()*(H-40)));
@@ -220,7 +220,7 @@
   function endWin(){ playing=false; finished=true; showWin(); }
   function endCrash(){ playing=false; crashed=true; showCrash(); }
 
-  // helpers
+  
   function speedAt(t){ const k=Math.min(1,t/DURATION); const eased=k*k; return BASE_SPEED + (MAX_SPEED-BASE_SPEED)*eased; }
   function asteroidIntervalAt(t){ const k=Math.min(1,t/DURATION); return ASTEROID_INTERVAL_MAX + (ASTEROID_INTERVAL_MIN - ASTEROID_INTERVAL_MAX)*k; }
   function formatTime(ms){ const s=Math.ceil(Math.max(0,ms)/1000); const m=String(Math.floor(s/60)).padStart(2,'0'); const ss=String(s%60).padStart(2,'0'); return `${m}:${ss}`; }
@@ -233,7 +233,7 @@
     gfPreview=null;
   }
 
-  // ======= Visual Layer Helpers (cosmetic) =======
+  
   function newNebula(x=W+40,y=Math.random()*H){ const r=26+Math.random()*42; const a=0.08+Math.random()*0.12; const wobble=Math.random()*Math.PI*2; return {x,y,r,a,wobble}; }
   function drawNebula(dt,spd){
     for(let i=nebula.length-1;i>=0;i--){
@@ -273,7 +273,7 @@
     while(planets.length < PLANET_COUNT) planets.push(newPlanet());
   }
 
-  // ===== Visual FX: trail & sparkles (cosmetic) =====
+  
   function maybeAddTrail(now,spd,dt){
     if(now-lastTrailAt>=TRAIL_SPAWN_INTERVAL){
       trail.push({ x:rocket.x-3, y:rocket.y+5, r:2, a:1 });
@@ -320,30 +320,30 @@
     }
   }
 
-  // ===== Girlfriend pixel-art fallback (used only if image not yet loaded) =====
+  
   function drawGirlfriendFallback(entity){
     if(!entity) return;
-    if (gfReady) return; // HD image will be drawn on screen canvas after blit
+    if (gfReady) return; 
     const gx=entity.x|0, gy=entity.y|0;
     entity.sway=(entity.sway||0)+0.05;
     const sway=Math.sin(entity.sway)*1.2;
-    // hair
+    
     g.fillStyle='#2b0f46'; g.fillRect(gx+4,gy+1,10,8);
-    // face
+    
     g.fillStyle='#ffd1ea'; g.fillRect(gx+6,gy+4,6,6);
-    // eyes
+   
     g.fillStyle='#2b0f46'; g.fillRect(gx+7,gy+6,1,1); g.fillRect(gx+10,gy+6,1,1);
-    // body/dress
+  
     g.fillStyle='#b28bff'; g.fillRect(gx+5,gy+11,8,10);
-    // legs
+
     g.fillStyle='#ffd1ea'; g.fillRect(gx+7,gy+21,2,4); g.fillRect(gx+9,gy+21,2,4);
-    // little heart
+   
     g.fillStyle='#ff6fb3';
     g.fillRect(gx+1, gy+2+(sway|0),1,1); g.fillRect(gx+2, gy+1+(sway|0),1,1); g.fillRect(gx+2, gy+2+(sway|0),1,1);
   }
 
-  // ===== HD rider & girlfriend on the SCREEN canvas =====
-  let lastBlit = {dx:0, dy:0, scale:1, dpr:1}; // updated in blit()
+  
+  let lastBlit = {dx:0, dy:0, scale:1, dpr:1}; 
 
   function drawAaronRiderHD(){
     if(!aaronReady) return;
@@ -371,7 +371,7 @@
     ctx.imageSmoothingEnabled = prev;
   }
 
-  // rendering helpers
+  
   function clear(){ const grd=g.createLinearGradient(0,0,0,H); grd.addColorStop(0,'#14002a'); grd.addColorStop(1,'#2a0a4a'); g.fillStyle=grd; g.fillRect(0,0,W,H); }
   function drawStars(dt,spd){ for(const s of stars){ const p=[0.25,0.5,1.0][s.layer]; s.x-=spd*p*dt; if(s.x<-4) Object.assign(s,newStar()); g.fillStyle=['#4b2a6b','#9d6cff','#e2c6ff'][s.layer]; g.fillRect(s.x|0,s.y|0,1,1);} }
   function drawRocket(){ const {x,y}=rocket; const px=(ix,iy,w,h,c)=>{g.fillStyle=c;g.fillRect((x+ix)|0,(y+iy)|0,w,h);}; px(0,2,10,6,'#b28bff'); px(9,3,3,4,'#e2c6ff'); px(3,4,3,2,'#12001f'); px(0,1,2,2,'#8f5bff'); px(0,7,2,2,'#8f5bff'); const flame=Math.max(0,-rocket.vy*0.8); px(-2,4-(flame>0?1:0),2,2+((flame>2)?1:0),'#ff9ad2'); if(rocket.invuln>0&&((performance.now()%200)|0)<100){ g.globalCompositeOperation='lighter'; px(-1,2,1,6,'#ffffff'); g.globalCompositeOperation='source-over'; } }
@@ -380,7 +380,7 @@
 
   function aabb(x,y,w,h, x2,y2,w2,h2){ return x < x2+w2 && x+w > x2 && y < y2+h2 && y+h > y2; }
 
-  // main loop
+  
   function loop(now){
     if(!playing) return;
     const dt=Math.min(40, now-lastFrame); lastFrame=now;
@@ -388,35 +388,35 @@
     const timeLeft = Math.max(0, DURATION - elapsed);
     const spd = speedAt(elapsed);
 
-    // physics
+   
     rocket.vy += GRAVITY;
     rocket.y  += rocket.vy;
     if(rocket.y<2){ rocket.y=2; rocket.vy=0; }
     if(rocket.y>H-rocket.h-2){ rocket.y=H-rocket.h-2; rocket.vy=0; }
     if(rocket.invuln>0) rocket.invuln -= dt;
 
-    // cosmetics
+ 
     maybeAddTrail(now, spd, dt);
     maybeDripSparkles(now);
     updateSparkles(dt, spd);
 
-    // spawning & preview logic
+
     if (elapsed < DURATION) {
       if (elapsed > START_GRACE && now > nextAsteroidAt) {
         obstacles.push(newAsteroid());
         const interval = asteroidIntervalAt(elapsed);
         nextAsteroidAt = now + interval * (0.7 + Math.random()*0.6);
       }
-      // spawn preview in the last 30 seconds (unreachable)
+
       if (!gfPreview && timeLeft <= GF_PREVIEW_WINDOW) {
         gfPreview = { x: W - 40, y: H/2 - 10, w: GF_W, h: GF_H, sway: 0 };
       }
     } else {
-      // AFTER 3:00 -> convert preview to real girlfriend (catchable)
+ 
       if (!girlfriend) spawnGirlfriend();
     }
 
-    // keep preview ahead of the rocket (so you can't reach her yet)
+
     if (gfPreview && !girlfriend) {
       gfPreview.sway += 0.05;
       const minAhead = rocket.x + 110;
@@ -425,7 +425,7 @@
       gfPreview.y = H/2 - 10 + Math.sin(gfPreview.sway)*1.0;
     }
 
-    // move obstacles & score
+
     for (let i=obstacles.length-1;i>=0;i--){
       const a=obstacles[i];
       a.x -= spd*dt;
@@ -434,10 +434,10 @@
       if(!a.scored && a.x + a.r < rocket.x){ score++; a.scored = true; }
     }
 
-    // draw frame
+
     drawFrame(dt, spd, timeLeft);
 
-    // collisions (disabled only when real girlfriend exists)
+    
     if(rocket.invuln<=0 && !girlfriend){
       const rb = {x:rocket.x,y:rocket.y,w:rocket.w,h:rocket.h};
       for(const a of obstacles){
@@ -447,7 +447,7 @@
       }
     }
 
-    // approach her and finish
+    
     if(girlfriend){
       girlfriend.sway += 0.05;
       girlfriend.x -= spd*dt*0.85;
@@ -469,7 +469,7 @@
     drawTrail();
 
     for(const a of obstacles){ drawAsteroid(a); }
-    // fallback pixel-art if images not loaded yet
+    
     drawGirlfriendFallback(gfPreview);
     drawGirlfriendFallback(girlfriend);
 
@@ -477,8 +477,8 @@
     drawSparkles();
 
     drawHUDOverlay(timeLeft);
-    blit();                 // copy low-res → screen
-    // HD draws (if images ready)
+    blit();                 
+    
     drawChibiHD(gfPreview);
     drawChibiHD(girlfriend);
     drawAaronRiderHD();
@@ -493,7 +493,7 @@
   }
 
   function blit(){
-    // Fit buffer into view canvas keeping aspect ratio
+   
     const vw = view.clientWidth, vh = view.clientHeight;
     const scale = Math.min(vw/W, vh/H);
     const dw = (W*scale)|0, dh = (H*scale)|0;
@@ -504,11 +504,11 @@
 
     ctx.clearRect(0,0,view.width,view.height);
     ctx.save();
-    ctx.imageSmoothingEnabled = false; // keep game pixels crisp
+    ctx.imageSmoothingEnabled = false;
     ctx.drawImage(buffer, 0,0,W,H, dx*dpr, dy*dpr, dw*dpr, dh*dpr);
     ctx.restore();
 
-    // store transform so we can draw HD sprites in exact screen space
+   
     lastBlit = {dx, dy, scale, dpr};
   }
 
@@ -518,7 +518,7 @@
     document.getElementById('timer').textContent = formatTime(timeLeft);
   }
 
-  // init
+
   showIntro();
   const hideHint=()=>{ touchHint.style.display='none'; window.removeEventListener('touchstart',hideHint); window.removeEventListener('mousedown',hideHint); };
   window.addEventListener('touchstart',hideHint,{passive:true});
