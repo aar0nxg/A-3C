@@ -53,14 +53,27 @@
   const GRAVITY = 0.28;
   const FLAP = -5.4;
 
-  // ONLY CHANGE: slow overall feel
-  const BASE_SPEED = 0.42;          // was 0.48
-  const MAX_SPEED  = 2.0;           // was 2.3
-  const ASTEROID_INTERVAL_MIN = 750;  // was 650
-  const ASTEROID_INTERVAL_MAX = 2100; // was 1900
+  // Slower overall feel (approved)
+  const BASE_SPEED = 0.42;            // gentler start
+  const MAX_SPEED  = 2.0;             // lower top speed
+  const ASTEROID_INTERVAL_MIN = 750;  // fewer spawns at peak
+  const ASTEROID_INTERVAL_MAX = 2100; // fewer spawns early
 
   const START_GRACE = 1500;    // first 1.5s: no asteroids
   const ROCKET_X = 56;
+
+  // --- Visual parallax layers (no gameplay impact) ---
+  const NEBULA_COUNT   = 6;      // soft fog blobs
+  const PLANET_COUNT   = 2;      // distant planets
+  const NEBULA_PARALLAX = 0.18;  // slow drift
+  const PLANET_PARALLAX = 0.10;  // slower drift
+
+  // --- Foreground FX (visual only) ---
+  const TRAIL_MAX = 42;                 // max trail points
+  const TRAIL_SPAWN_INTERVAL = 40;      // ms between trail dots
+  const SPARKLE_BURST = 12;             // on tap/flap
+  const SPARKLE_DRIP = 2;               // while thrusting (vy < 0)
+  const SPARKLE_INTERVAL = 60;          // ms between drip spawns
 
   // ====== state ======
   let playing=false, finished=false, crashed=false, startedAt=0, elapsed=0, lastFrame=0;
@@ -68,6 +81,14 @@
   let rocket={x:ROCKET_X,y:H/2,vy:0,w:16,h:10,invuln:0};
   let obstacles=[]; let stars=[]; let nextAsteroidAt=0;
   let girlfriend=null; // appears ONLY after 3:00
+  // visual layers
+  let nebula = [];
+  let planets = [];
+  // fx
+  let trail = [];
+  let sparkles = [];
+  let lastTrailAt = 0;
+  let nextSparkleAt = 0;
 
   // ====== ui ======
   const uiTimer=document.getElementById('timer');
@@ -81,7 +102,14 @@
   window.addEventListener('keydown', e=>{ if(e.code==='Space'){ e.preventDefault(); flap(); }});
   window.addEventListener('touchstart', ()=>flap(), {passive:true});
   window.addEventListener('mousedown', ()=>flap());
-  function flap(){ if(!playing && !finished){ start(); } if(playing){ rocket.vy = FLAP; } }
+
+  function flap(){
+    if(!playing && !finished){ start(); }
+    if(playing){
+      rocket.vy = FLAP;
+      spawnThrustBurst(); // visual only
+    }
+  }
 
   // overlay helpers
   function showCenter(html){ centerCard.innerHTML=html; centerMsg.style.display='grid'; }
@@ -117,22 +145,156 @@
     hideCenter(); touchHint.style.display='none';
     playing=true; crashed=false; finished=false;
     score=0; obstacles=[]; stars=[]; girlfriend=null;
+    nebula=[]; planets=[];
+    trail=[]; sparkles=[]; lastTrailAt=0; nextSparkleAt=0;
+
     rocket.y=H/2; rocket.vy=0; rocket.invuln=800;
     startedAt=performance.now(); lastFrame=startedAt; elapsed=0; nextAsteroidAt=0;
+
+    // seed stars
     for(let i=0;i<80;i++) stars.push(newStar(Math.random()*W, Math.random()*H));
+    // seed visual layers
+    for (let i=0;i<NEBULA_COUNT;i++) nebula.push(newNebula(Math.random()*W, Math.random()*H));
+    for (let i=0;i<PLANET_COUNT;i++) planets.push(newPlanet(Math.random()*W, 20 + Math.random()*(H-40)));
+
     requestAnimationFrame(loop);
   }
   function endWin(){ playing=false; finished=true; showWin(); }
   function endCrash(){ playing=false; crashed=true; showCrash(); }
 
   // helpers
-  function speedAt(t){ const k=Math.min(1,t/DURATION); const eased = k * k; return BASE_SPEED + (MAX_SPEED-BASE_SPEED)* eased; }
+  // smoother ramp (keep same start/end speeds)
+  function speedAt(t){
+    const k = Math.min(1, t / DURATION);
+    const eased = k * k; // quadratic easing: slower early, faster late
+    return BASE_SPEED + (MAX_SPEED - BASE_SPEED) * eased;
+  }
   function asteroidIntervalAt(t){ const k=Math.min(1,t/DURATION); return ASTEROID_INTERVAL_MAX + (ASTEROID_INTERVAL_MIN - ASTEROID_INTERVAL_MAX)*k; }
   function formatTime(ms){ const s=Math.ceil(Math.max(0,ms)/1000); const m=String(Math.floor(s/60)).padStart(2,'0'); const ss=String(s%60).padStart(2,'0'); return `${m}:${ss}`; }
 
   function newStar(x=W+8,y=Math.random()*H){ const layer=Math.random()<0.6?0:(Math.random()<0.5?1:2); return {x,y,layer}; }
   function newAsteroid(){ const r=6+Math.random()*10; const y=12+Math.random()*(H-24); const vy=(Math.random()*0.6-0.3); return {x:W+20,y,r,vy,scored:false}; }
   function spawnGirlfriend(){ girlfriend={x: W+60, y: H/2-10, w:18, h:26, sway:0}; }
+
+  // ======= Visual Layer Helpers (purely cosmetic) =======
+  function newNebula(x = W + 40, y = Math.random()*H) {
+    const r  = 26 + Math.random()*42;     // radius
+    const a  = 0.08 + Math.random()*0.12; // alpha
+    const wobble = Math.random()*Math.PI*2;
+    return { x, y, r, a, wobble };
+  }
+  function drawNebula(dt, spd){
+    for (let i = nebula.length-1; i >= 0; i--) {
+      const n = nebula[i];
+      n.x -= spd * NEBULA_PARALLAX * dt;
+      n.wobble += 0.004;
+      const rr = n.r + Math.sin(n.wobble)*2.0;
+      const grad = g.createRadialGradient(n.x, n.y, 0, n.x, n.y, rr);
+      grad.addColorStop(0, `rgba(178,139,255,${n.a})`);
+      grad.addColorStop(1, `rgba(178,139,255,0)`);
+      g.fillStyle = grad;
+      g.beginPath();
+      g.arc(n.x|0, n.y|0, rr|0, 0, Math.PI*2);
+      g.fill();
+      if (n.x < -rr - 10) nebula.splice(i,1);
+    }
+    while (nebula.length < NEBULA_COUNT) nebula.push(newNebula());
+  }
+
+  function newPlanet(x = W + 80, y = 30 + Math.random()*(H-60)) {
+    const r  = 10 + Math.random()*14;
+    const ring = Math.random() < 0.5;
+    const hue = Math.random() < 0.5 ? '#6e49a3' : '#8a68c0';
+    return { x, y, r, ring, hue };
+  }
+  function drawPlanets(dt, spd){
+    for (let i = planets.length-1; i >= 0; i--) {
+      const p = planets[i];
+      p.x -= spd * PLANET_PARALLAX * dt;
+      g.fillStyle = p.hue;
+      g.beginPath(); g.arc(p.x|0, p.y|0, p.r|0, 0, Math.PI*2); g.fill();
+      g.fillStyle = 'rgba(0,0,0,0.25)';
+      g.beginPath(); g.arc((p.x+2)|0, (p.y+1)|0, p.r|0, Math.PI*0.1, Math.PI*1.1); g.fill();
+      if (p.ring) {
+        g.strokeStyle = 'rgba(226,198,255,0.45)';
+        g.lineWidth = 1;
+        g.beginPath(); g.ellipse(p.x|0, p.y|0, p.r+3, p.r*0.45, 0.25, 0, Math.PI*2); g.stroke();
+      }
+      if (p.x < -p.r - 20) planets.splice(i,1);
+    }
+    while (planets.length < PLANET_COUNT) planets.push(newPlanet());
+  }
+
+  // ===== Visual FX: trail & sparkles (no gameplay impact) =====
+  function maybeAddTrail(now, spd, dt){
+    if (now - lastTrailAt >= TRAIL_SPAWN_INTERVAL){
+      trail.push({ x: rocket.x - 3, y: rocket.y + 5, r: 2, a: 1 });
+      lastTrailAt = now;
+      if (trail.length > TRAIL_MAX) trail.shift();
+    }
+    for (let i = trail.length - 1; i >= 0; i--){
+      const p = trail[i];
+      p.x -= spd * dt * 0.6;
+      p.y += 0.02 * dt;
+      p.r += 0.005 * dt;
+      p.a -= 0.0035 * dt;
+      if (p.a <= 0 || p.x < -10) trail.splice(i, 1);
+    }
+  }
+  function drawTrail(){
+    for (const p of trail){
+      g.fillStyle = `rgba(255,154,210,${0.50 * Math.max(0, p.a)})`;
+      g.fillRect(p.x|0, p.y|0, 2, 2);
+      g.fillStyle = `rgba(178,139,255,${0.35 * Math.max(0, p.a)})`;
+      g.fillRect((p.x-1)|0, (p.y+1)|0, 1, 1);
+    }
+  }
+  function spawnThrustBurst(){
+    for (let i = 0; i < SPARKLE_BURST; i++){
+      sparkles.push({
+        x: rocket.x - 2,
+        y: rocket.y + 5,
+        vx: -0.02 - Math.random()*0.10,
+        vy: (Math.random()*0.5 - 0.25),
+        life: 450 + Math.random()*300,
+        a: 1
+      });
+    }
+  }
+  function maybeDripSparkles(now){
+    if (rocket.vy < 0 && now >= nextSparkleAt){
+      nextSparkleAt = now + SPARKLE_INTERVAL;
+      for (let i = 0; i < SPARKLE_DRIP; i++){
+        sparkles.push({
+          x: rocket.x - 2,
+          y: rocket.y + 5,
+          vx: -0.02 - Math.random()*0.06,
+          vy: (Math.random()*0.4 - 0.2),
+          life: 380 + Math.random()*220,
+          a: 1
+        });
+      }
+    }
+  }
+  function updateSparkles(dt, spd){
+    for (let i = sparkles.length - 1; i >= 0; i--){
+      const s = sparkles[i];
+      s.x += s.vx * dt - spd * dt * 0.5;
+      s.y += s.vy * dt;
+      s.vy += 0.0006 * dt;
+      s.life -= dt;
+      s.a = Math.max(0, s.life / 450);
+      if (s.life <= 0 || s.x < -10) sparkles.splice(i, 1);
+    }
+  }
+  function drawSparkles(){
+    for (const s of sparkles){
+      g.fillStyle = `rgba(255,142,198,${0.9*s.a})`;
+      g.fillRect(s.x|0, s.y|0, 1, 1);
+      g.fillStyle = `rgba(226,198,255,${0.6*s.a})`;
+      g.fillRect((s.x+1)|0, s.y|0, 1, 1);
+    }
+  }
 
   // rendering
   function clear(){ const grd=g.createLinearGradient(0,0,0,H); grd.addColorStop(0,'#14002a'); grd.addColorStop(1,'#2a0a4a'); g.fillStyle=grd; g.fillRect(0,0,W,H); }
@@ -160,6 +322,11 @@
     if(rocket.y>H-rocket.h-2){ rocket.y=H-rocket.h-2; rocket.vy=0; }
     if(rocket.invuln>0) rocket.invuln -= dt;
 
+    // --- NEW: visual FX updates (no gameplay impact) ---
+    maybeAddTrail(now, spd, dt);
+    maybeDripSparkles(now);
+    updateSparkles(dt, spd);
+
     // spawning: during the 3 minutes (except first 1.5s)
     if (elapsed < DURATION) {
       if (elapsed > START_GRACE && now > nextAsteroidAt) {
@@ -182,13 +349,7 @@
     }
 
     // draw frame
-    clear();
-    drawStars(dt, spd);
-    for(const a of obstacles) drawAsteroid(a);
-    if(girlfriend) drawGirlfriend();
-    drawRocket();
-    drawHUDOverlay(timeLeft);
-    blit();
+    drawFrame(dt, spd, timeLeft);
 
     // collisions (disabled once girlfriend appears)
     if(rocket.invuln<=0 && !girlfriend){
@@ -210,6 +371,24 @@
 
     ui(timeLeft, spd);
     requestAnimationFrame(loop);
+  }
+
+  function drawFrame(dt, spd, timeLeft){
+    clear();
+    drawPlanets(dt, spd);   // far layer
+    drawNebula(dt, spd);    // behind stars
+    drawStars(dt, spd);
+
+    drawTrail();            // behind obstacles/rocket
+
+    for(const a of obstacles){ drawAsteroid(a); }
+    if(girlfriend) drawGirlfriend();
+    drawRocket();
+
+    drawSparkles();         // in front of rocket
+
+    drawHUDOverlay(timeLeft);
+    blit();
   }
 
   function drawEndingEmbrace(){
