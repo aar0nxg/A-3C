@@ -60,24 +60,24 @@
   const ROCKET_X = 56;
 
   // --- Visual parallax layers (no gameplay impact) ---
-  const NEBULA_COUNT   = 6;      // soft fog blobs
-  const PLANET_COUNT   = 2;      // distant planets
-  const NEBULA_PARALLAX = 0.18;  // slow drift
-  const PLANET_PARALLAX = 0.10;  // slower drift
+  const NEBULA_COUNT   = 6;
+  const PLANET_COUNT   = 2;
+  const NEBULA_PARALLAX = 0.18;
+  const PLANET_PARALLAX = 0.10;
 
   // --- Foreground FX (visual only) ---
-  const TRAIL_MAX = 42;                 // max trail points
-  const TRAIL_SPAWN_INTERVAL = 40;      // ms between trail dots
-  const SPARKLE_BURST = 12;             // on tap/flap
-  const SPARKLE_DRIP = 2;               // while thrusting (vy < 0)
-  const SPARKLE_INTERVAL = 60;          // ms between drip spawns
+  const TRAIL_MAX = 42;
+  const TRAIL_SPAWN_INTERVAL = 40;
+  const SPARKLE_BURST = 12;
+  const SPARKLE_DRIP = 2;
+  const SPARKLE_INTERVAL = 60;
 
   // --- Rider (visual only) ---
-  const AARON_SRC = "aaron.jpg";  // ensure the file name matches
-  const AARON_W   = 14;           // rider width (game pixels)
-  let   AARON_H   = 14;           // height auto-set by aspect
-  const AARON_OFF_X = 3;          // offset from rocket.x
-  const AARON_OFF_Y = -6;         // offset from rocket.y
+  const AARON_SRC = "aaron.jpg";  // ensure name matches your file
+  const AARON_W   = 12;
+  let   AARON_H   = 12;
+  const AARON_OFF_X = 3;
+  const AARON_OFF_Y = -6;
   const aaronImg = new Image();
   let aaronReady = false;
   aaronImg.onload = () => {
@@ -92,11 +92,9 @@
   let score=0;
   let rocket={x:ROCKET_X,y:H/2,vy:0,w:16,h:10,invuln:0};
   let obstacles=[]; let stars=[]; let nextAsteroidAt=0;
-  let girlfriend=null; // appears ONLY after 3:00
-  // visual layers
+  let girlfriend=null;
   let nebula = [];
   let planets = [];
-  // fx
   let trail = [];
   let sparkles = [];
   let lastTrailAt = 0;
@@ -119,7 +117,7 @@
     if(!playing && !finished){ start(); }
     if(playing){
       rocket.vy = FLAP;
-      spawnThrustBurst(); // visual only
+      spawnThrustBurst();
     }
   }
 
@@ -163,9 +161,8 @@
     rocket.y=H/2; rocket.vy=0; rocket.invuln=800;
     startedAt=performance.now(); lastFrame=startedAt; elapsed=0; nextAsteroidAt=0;
 
-    // seed stars
+    // seed stars & layers
     for(let i=0;i<80;i++) stars.push(newStar(Math.random()*W, Math.random()*H));
-    // seed visual layers
     for (let i=0;i<NEBULA_COUNT;i++) nebula.push(newNebula(Math.random()*W, Math.random()*H));
     for (let i=0;i<PLANET_COUNT;i++) planets.push(newPlanet(Math.random()*W, 20 + Math.random()*(H-40)));
 
@@ -175,12 +172,7 @@
   function endCrash(){ playing=false; crashed=true; showCrash(); }
 
   // helpers
-  // smoother ramp (keep same start/end speeds)
-  function speedAt(t){
-    const k = Math.min(1, t / DURATION);
-    const eased = k * k; // quadratic easing: slower early, faster late
-    return BASE_SPEED + (MAX_SPEED - BASE_SPEED) * eased;
-  }
+  function speedAt(t){ const k=Math.min(1,t/DURATION); const eased=k*k; return BASE_SPEED + (MAX_SPEED-BASE_SPEED)*eased; }
   function asteroidIntervalAt(t){ const k=Math.min(1,t/DURATION); return ASTEROID_INTERVAL_MAX + (ASTEROID_INTERVAL_MIN - ASTEROID_INTERVAL_MAX)*k; }
   function formatTime(ms){ const s=Math.ceil(Math.max(0,ms)/1000); const m=String(Math.floor(s/60)).padStart(2,'0'); const ss=String(s%60).padStart(2,'0'); return `${m}:${ss}`; }
 
@@ -188,139 +180,108 @@
   function newAsteroid(){ const r=6+Math.random()*10; const y=12+Math.random()*(H-24); const vy=(Math.random()*0.6-0.3); return {x:W+20,y,r,vy,scored:false}; }
   function spawnGirlfriend(){ girlfriend={x: W+60, y: H/2-10, w:18, h:26, sway:0}; }
 
-  // ======= Visual Layer Helpers (purely cosmetic) =======
-  function newNebula(x = W + 40, y = Math.random()*H) {
-    const r  = 26 + Math.random()*42;     // radius
-    const a  = 0.08 + Math.random()*0.12; // alpha
-    const wobble = Math.random()*Math.PI*2;
-    return { x, y, r, a, wobble };
-  }
-  function drawNebula(dt, spd){
-    for (let i = nebula.length-1; i >= 0; i--) {
-      const n = nebula[i];
-      n.x -= spd * NEBULA_PARALLAX * dt;
+  // ======= Visual Layer Helpers (cosmetic) =======
+  function newNebula(x=W+40,y=Math.random()*H){ const r=26+Math.random()*42; const a=0.08+Math.random()*0.12; const wobble=Math.random()*Math.PI*2; return {x,y,r,a,wobble}; }
+  function drawNebula(dt,spd){
+    for(let i=nebula.length-1;i>=0;i--){
+      const n=nebula[i];
+      n.x -= spd*NEBULA_PARALLAX*dt;
       n.wobble += 0.004;
       const rr = n.r + Math.sin(n.wobble)*2.0;
-      const grad = g.createRadialGradient(n.x, n.y, 0, n.x, n.y, rr);
-      grad.addColorStop(0, `rgba(178,139,255,${n.a})`);
-      grad.addColorStop(1, `rgba(178,139,255,0)`);
+      const grad = g.createRadialGradient(n.x,n.y,0,n.x,n.y,rr);
+      grad.addColorStop(0,`rgba(178,139,255,${n.a})`);
+      grad.addColorStop(1,`rgba(178,139,255,0)`);
       g.fillStyle = grad;
-      g.beginPath();
-      g.arc(n.x|0, n.y|0, rr|0, 0, Math.PI*2);
-      g.fill();
-      if (n.x < -rr - 10) nebula.splice(i,1);
+      g.beginPath(); g.arc(n.x|0,n.y|0,rr|0,0,Math.PI*2); g.fill();
+      if(n.x < -rr - 10) nebula.splice(i,1);
     }
-    while (nebula.length < NEBULA_COUNT) nebula.push(newNebula());
+    while(nebula.length < NEBULA_COUNT) nebula.push(newNebula());
   }
 
-  function newPlanet(x = W + 80, y = 30 + Math.random()*(H-60)) {
-    const r  = 10 + Math.random()*14;
-    const ring = Math.random() < 0.5;
-    const hue = Math.random() < 0.5 ? '#6e49a3' : '#8a68c0';
-    return { x, y, r, ring, hue };
-  }
-  function drawPlanets(dt, spd){
-    for (let i = planets.length-1; i >= 0; i--) {
-      const p = planets[i];
-      p.x -= spd * PLANET_PARALLAX * dt;
+  function newPlanet(x=W+80,y=30+Math.random()*(H-60)){ const r=10+Math.random()*14; const ring=Math.random()<0.5; const hue=Math.random()<0.5?'#6e49a3':'#8a68c0'; return {x,y,r,ring,hue}; }
+  function drawPlanets(dt,spd){
+    for(let i=planets.length-1;i>=0;i--){
+      const p=planets[i];
+      p.x -= spd*PLANET_PARALLAX*dt;
 
-      // softer transparency so they don't read like obstacles
-      g.fillStyle = `${p.hue}aa`; // ~67% alpha; use '80' for ~50% if desired
-      g.beginPath(); g.arc(p.x|0, p.y|0, p.r|0, 0, Math.PI*2); g.fill();
+      // transparent so planets don't read like obstacles
+      g.fillStyle = `${p.hue}aa`;
+      g.beginPath(); g.arc(p.x|0,p.y|0,p.r|0,0,Math.PI*2); g.fill();
 
-      // simple terminator shadow
       g.fillStyle = 'rgba(0,0,0,0.25)';
-      g.beginPath(); g.arc((p.x+2)|0, (p.y+1)|0, p.r|0, Math.PI*0.1, Math.PI*1.1); g.fill();
-      if (p.ring) {
-        g.strokeStyle = 'rgba(226,198,255,0.45)';
-        g.lineWidth = 1;
-        g.beginPath(); g.ellipse(p.x|0, p.y|0, p.r+3, p.r*0.45, 0.25, 0, Math.PI*2); g.stroke();
+      g.beginPath(); g.arc((p.x+2)|0,(p.y+1)|0,p.r|0,Math.PI*0.1,Math.PI*1.1); g.fill();
+
+      if(p.ring){
+        g.strokeStyle='rgba(226,198,255,0.45)';
+        g.lineWidth=1;
+        g.beginPath(); g.ellipse(p.x|0,p.y|0,p.r+3,p.r*0.45,0.25,0,Math.PI*2); g.stroke();
       }
-      if (p.x < -p.r - 20) planets.splice(i,1);
+      if(p.x < -p.r - 20) planets.splice(i,1);
     }
-    while (planets.length < PLANET_COUNT) planets.push(newPlanet());
+    while(planets.length < PLANET_COUNT) planets.push(newPlanet());
   }
 
-  // ===== Visual FX: trail & sparkles (no gameplay impact) =====
-  function maybeAddTrail(now, spd, dt){
-    if (now - lastTrailAt >= TRAIL_SPAWN_INTERVAL){
-      trail.push({ x: rocket.x - 3, y: rocket.y + 5, r: 2, a: 1 });
-      lastTrailAt = now;
-      if (trail.length > TRAIL_MAX) trail.shift();
+  // ===== Visual FX: trail & sparkles (cosmetic) =====
+  function maybeAddTrail(now,spd,dt){
+    if(now-lastTrailAt>=TRAIL_SPAWN_INTERVAL){
+      trail.push({ x:rocket.x-3, y:rocket.y+5, r:2, a:1 });
+      lastTrailAt=now; if(trail.length>TRAIL_MAX) trail.shift();
     }
-    for (let i = trail.length - 1; i >= 0; i--){
-      const p = trail[i];
-      p.x -= spd * dt * 0.6;
-      p.y += 0.02 * dt;
-      p.r += 0.005 * dt;
-      p.a -= 0.0035 * dt;
-      if (p.a <= 0 || p.x < -10) trail.splice(i, 1);
+    for(let i=trail.length-1;i>=0;i--){
+      const p=trail[i];
+      p.x-=spd*dt*0.6; p.y+=0.02*dt; p.r+=0.005*dt; p.a-=0.0035*dt;
+      if(p.a<=0||p.x<-10) trail.splice(i,1);
     }
   }
   function drawTrail(){
-    for (const p of trail){
-      g.fillStyle = `rgba(255,154,210,${0.50 * Math.max(0, p.a)})`;
-      g.fillRect(p.x|0, p.y|0, 2, 2);
-      g.fillStyle = `rgba(178,139,255,${0.35 * Math.max(0, p.a)})`;
-      g.fillRect((p.x-1)|0, (p.y+1)|0, 1, 1);
+    for(const p of trail){
+      g.fillStyle = `rgba(255,154,210,${0.50*Math.max(0,p.a)})`;
+      g.fillRect(p.x|0,p.y|0,2,2);
+      g.fillStyle = `rgba(178,139,255,${0.35*Math.max(0,p.a)})`;
+      g.fillRect((p.x-1)|0,(p.y+1)|0,1,1);
     }
   }
-  function spawnThrustBurst(){
-    for (let i = 0; i < SPARKLE_BURST; i++){
-      sparkles.push({
-        x: rocket.x - 2,
-        y: rocket.y + 5,
-        vx: -0.02 - Math.random()*0.10,
-        vy: (Math.random()*0.5 - 0.25),
-        life: 450 + Math.random()*300,
-        a: 1
-      });
-    }
-  }
+  function spawnThrustBurst(){ for(let i=0;i<SPARKLE_BURST;i++){ sparkles.push({x:rocket.x-2,y:rocket.y+5,vx:-0.02-Math.random()*0.10,vy:(Math.random()*0.5-0.25),life:450+Math.random()*300,a:1}); } }
   function maybeDripSparkles(now){
-    if (rocket.vy < 0 && now >= nextSparkleAt){
-      nextSparkleAt = now + SPARKLE_INTERVAL;
-      for (let i = 0; i < SPARKLE_DRIP; i++){
-        sparkles.push({
-          x: rocket.x - 2,
-          y: rocket.y + 5,
-          vx: -0.02 - Math.random()*0.06,
-          vy: (Math.random()*0.4 - 0.2),
-          life: 380 + Math.random()*220,
-          a: 1
-        });
+    if(rocket.vy<0 && now>=nextSparkleAt){
+      nextSparkleAt=now+SPARKLE_INTERVAL;
+      for(let i=0;i<SPARKLE_DRIP;i++){
+        sparkles.push({x:rocket.x-2,y:rocket.y+5,vx:-0.02-Math.random()*0.06,vy:(Math.random()*0.4-0.2),life:380+Math.random()*220,a:1});
       }
     }
   }
-  function updateSparkles(dt, spd){
-    for (let i = sparkles.length - 1; i >= 0; i--){
-      const s = sparkles[i];
-      s.x += s.vx * dt - spd * dt * 0.5;
-      s.y += s.vy * dt;
-      s.vy += 0.0006 * dt;
+  function updateSparkles(dt,spd){
+    for(let i=sparkles.length-1;i>=0;i--){
+      const s=sparkles[i];
+      s.x += s.vx*dt - spd*dt*0.5;
+      s.y += s.vy*dt;
+      s.vy += 0.0006*dt;
       s.life -= dt;
-      s.a = Math.max(0, s.life / 450);
-      if (s.life <= 0 || s.x < -10) sparkles.splice(i, 1);
+      s.a = Math.max(0, s.life/450);
+      if(s.life<=0 || s.x<-10) sparkles.splice(i,1);
     }
   }
   function drawSparkles(){
-    for (const s of sparkles){
-      g.fillStyle = `rgba(255,142,198,${0.9*s.a})`;
-      g.fillRect(s.x|0, s.y|0, 1, 1);
-      g.fillStyle = `rgba(226,198,255,${0.6*s.a})`;
-      g.fillRect((s.x+1)|0, s.y|0, 1, 1);
+    for(const s of sparkles){
+      g.fillStyle=`rgba(255,142,198,${0.9*s.a})`; g.fillRect(s.x|0,s.y|0,1,1);
+      g.fillStyle=`rgba(226,198,255,${0.6*s.a})`; g.fillRect((s.x+1)|0,s.y|0,1,1);
     }
   }
 
-  // ===== Rider draw (visual only) =====
-  function drawAaronRider(){
+  // ===== HD Rider draw on the SCREEN canvas (not the low-res buffer) =====
+  let lastBlit = {dx:0, dy:0, scale:1, dpr:1}; // updated in blit()
+  function drawAaronRiderHD(){
     if(!aaronReady) return;
-    const rx = (rocket.x + AARON_OFF_X) | 0;
-    const ry = (rocket.y + AARON_OFF_Y) | 0;
-    const prev = g.imageSmoothingEnabled;
-    g.imageSmoothingEnabled = true; // smooth Aaron image only
-    g.drawImage(aaronImg, rx, ry, AARON_W, AARON_H);
-    g.imageSmoothingEnabled = prev;
+    const {dx,dy,scale,dpr} = lastBlit;
+    const sx = dx*dpr + (rocket.x + AARON_OFF_X) * scale * dpr;
+    const sy = dy*dpr + (rocket.y + AARON_OFF_Y) * scale * dpr;
+    const sw = AARON_W * scale * dpr;
+    const sh = AARON_H * scale * dpr;
+
+    const prev = ctx.imageSmoothingEnabled;
+    ctx.imageSmoothingEnabled = true;       // smooth only the rider
+    ctx.drawImage(aaronImg, sx, sy, sw, sh);
+    ctx.imageSmoothingEnabled = prev;
   }
 
   // rendering
@@ -349,12 +310,12 @@
     if(rocket.y>H-rocket.h-2){ rocket.y=H-rocket.h-2; rocket.vy=0; }
     if(rocket.invuln>0) rocket.invuln -= dt;
 
-    // --- visual FX updates (no gameplay impact) ---
+    // cosmetics
     maybeAddTrail(now, spd, dt);
     maybeDripSparkles(now);
     updateSparkles(dt, spd);
 
-    // spawning: during the 3 minutes (except first 1.5s)
+    // spawning
     if (elapsed < DURATION) {
       if (elapsed > START_GRACE && now > nextAsteroidAt) {
         obstacles.push(newAsteroid());
@@ -362,7 +323,6 @@
         nextAsteroidAt = now + interval * (0.7 + Math.random()*0.6);
       }
     } else {
-      // AFTER 3:00: stop spawning & show girlfriend
       if (!girlfriend) spawnGirlfriend();
     }
 
@@ -388,9 +348,9 @@
       }
     }
 
-    // after 3:00, approach her and finish by touching her
+    // approach her and finish
     if(girlfriend){
-      girlfriend.x -= spd*dt*0.85; // slightly slower so you catch up
+      girlfriend.x -= spd*dt*0.85;
       if(girlfriend.x < rocket.x + 6){
         drawEndingEmbrace(); ui(); endWin(); return;
       }
@@ -402,42 +362,49 @@
 
   function drawFrame(dt, spd, timeLeft){
     clear();
-    drawPlanets(dt, spd);   // far layer
-    drawNebula(dt, spd);    // behind stars
+    drawPlanets(dt, spd);
+    drawNebula(dt, spd);
     drawStars(dt, spd);
 
-    drawTrail();            // behind obstacles/rocket
+    drawTrail();
 
     for(const a of obstacles){ drawAsteroid(a); }
     if(girlfriend) drawGirlfriend();
     drawRocket();
-
-    drawAaronRider();       // mini Aaron rides the rocket
-
-    drawSparkles();         // in front of rocket
+    drawSparkles();
 
     drawHUDOverlay(timeLeft);
-    blit();
+    blit();                 // copy low-res → screen
+    drawAaronRiderHD();     // <-- draw HD rider on the screen canvas (non-pixelated)
   }
 
   function drawEndingEmbrace(){
     g.fillStyle='rgba(20,0,42,0.5)'; g.fillRect(0,0,W,H);
     for(let i=0;i<16;i++){ const x=(Math.random()*W)|0, y=(Math.random()*H)|0; g.fillStyle='#ff8ec6'; g.fillRect(x,y,1,1); g.fillRect(x+1,y,1,1); g.fillRect(x,y+1,1,1); }
     blit();
+    drawAaronRiderHD(); // keep rider visible during vignette
   }
 
   function blit(){
-    const vw=view.clientWidth, vh=view.clientHeight;
-    const scale=Math.min(vw/W, vh/H);
-    const dw=(W*scale)|0, dh=(H*scale)|0;
-    const dx=((vw-dw)/2)|0, dy=((vh-dh)/2)|0;
-    const dpr=window.devicePixelRatio||1;
-    if(view.width!==vw*dpr || view.height!==vh*dpr){ view.width=vw*dpr; view.height=vh*dpr; ctx.imageSmoothingEnabled=false; }
+    // Fit buffer into view canvas keeping aspect ratio
+    const vw = view.clientWidth, vh = view.clientHeight;
+    const scale = Math.min(vw/W, vh/H);
+    const dw = (W*scale)|0, dh = (H*scale)|0;
+    const dx = ((vw - dw)/2)|0, dy = ((vh - dh)/2)|0;
+
+    const dpr = window.devicePixelRatio || 1;
+    if(view.width !== vw*dpr || view.height !== vh*dpr){ view.width = vw*dpr; view.height = vh*dpr; ctx.imageSmoothingEnabled = false; }
+
     ctx.clearRect(0,0,view.width,view.height);
-    ctx.save(); ctx.imageSmoothingEnabled=false;
-    ctx.drawImage(buffer,0,0,W,H, dx*dpr,dy*dpr,dw*dpr,dh*dpr);
+    ctx.save();
+    ctx.imageSmoothingEnabled = false; // keep game pixels crisp
+    ctx.drawImage(buffer, 0,0,W,H, dx*dpr, dy*dpr, dw*dpr, dh*dpr);
     ctx.restore();
+
+    // store transform so we can draw HD rider in exact screen space
+    lastBlit = {dx, dy, scale, dpr};
   }
+
   function ui(timeLeft=Math.max(0,DURATION-(performance.now()-startedAt)), spd=speedAt(elapsed)){
     uiScore.textContent = score;
     uiSpeed.textContent = ((spd/BASE_SPEED).toFixed(1)+'x');
